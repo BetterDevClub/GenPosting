@@ -1,0 +1,209 @@
+using System.Net.Http.Headers;
+using GenPosting.Shared.DTOs;
+using Microsoft.Extensions.Options;
+
+namespace GenPosting.Api.Features.LinkedIn.Services;
+
+public interface ILinkedInService
+{
+    string GetAuthorizationUrl(string redirectUri);
+    Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
+    Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
+    Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content);
+}
+
+public class LinkedInService : ILinkedInService
+{
+    private readonly HttpClient _httpClient;
+    private readonly LinkedInSettings _settings;
+
+    public LinkedInService(HttpClient httpClient, IOptions<LinkedInSettings> settings)
+    {
+        _httpClient = httpClient;
+        _settings = settings.Value;
+    }
+
+    public string GetAuthorizationUrl(string redirectUri)
+    {
+        var paramsDict = new Dictionary<string, string>
+        {
+            { "response_type", "code" },
+            { "client_id", _settings.ClientId },
+            { "redirect_uri", redirectUri },
+            { "scope", _settings.Scope },
+            { "state", Guid.NewGuid().ToString() } // In prod, manage state properly
+        };
+
+        var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
+        return $"{_settings.AuthUrl}?{queryString}";
+    }
+
+    public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)
+    {
+        var paramsDict = new Dictionary<string, string>
+        {
+            { "grant_type", "authorization_code" },
+            { "code", code },
+            { "redirect_uri", redirectUri },
+            { "client_id", _settings.ClientId },
+            { "client_secret", _settings.ClientSecret }
+        };
+
+        var content = new FormUrlEncodedContent(paramsDict);
+        var response = await _httpClient.PostAsync(_settings.TokenUrl, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<LinkedInTokenResponseInternal>();
+        if (result == null) return null;
+
+        return new LinkedInTokenResponse(result.access_token, result.expires_in);
+    }
+
+    public async Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken)
+    {
+        // NOTE: fetching posts (UGC) usually requires querying 'ugcPosts' or 'shares' with specific author URN.
+        // First we need the user's URN (profile ID).
+        
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        _httpClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0"); // Important for V2 API
+        _httpClient.DefaultRequestHeaders.Add("LinkedIn-Version", "202306"); // Recommended versioning header, check docs for latest
+
+        // 1. Get Profile to get URN
+        string authorUrn;
+        try 
+        {
+            var userInfoResponse = await _httpClient.GetFromJsonAsync<LinkedInUserInfoResponse>($"{_settings.ApiUrl}/userinfo");
+            if (userInfoResponse == null) return new List<LinkedInPostDto>();
+            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"LinkedIn Profile Fetch Error: {ex.Message}");
+            return new List<LinkedInPostDto>();
+        }
+
+        // 2. Fetch Posts (Simplified - in real world this query is more complex and depends on API version)
+        // Using sample URN request for ugcPosts
+        var requestUrl = $"{_settings.ApiUrl}/ugcPosts?q=authors&authors=List({Uri.EscapeDataString(authorUrn)})";
+        
+        // For this demo, we might mock if the API isn't accessible or returns 403 (common without partner program)
+        try 
+        {
+            var postsResponse = await _httpClient.GetFromJsonAsync<LinkedInUgcPostsResponse>(requestUrl);
+            
+            // Map to DTO
+            return postsResponse?.elements?.Select(e => new LinkedInPostDto(
+                e.id,
+                e.specificContent?.shareContent?.shareCommentary?.text ?? "No Content",
+                DateTimeOffset.FromUnixTimeMilliseconds(e.created?.time ?? 0).UtcDateTime,
+                new LinkedInPostMetricsDto(0,0,0,0) // Metrics usually require separate call or different field
+            )).ToList() ?? new List<LinkedInPostDto>();
+        }
+        catch (HttpRequestException)
+        {
+            // Fallback for demo/empty state
+            return new List<LinkedInPostDto>();
+        }
+    }
+
+    public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        _httpClient.DefaultRequestHeaders.Remove("X-Restli-Protocol-Version"); // Clear potential duplicates if reused
+        _httpClient.DefaultRequestHeaders.Remove("LinkedIn-Version");
+        
+        _httpClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        _httpClient.DefaultRequestHeaders.Add("LinkedIn-Version", "202306");
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json")); // Explicit Accept
+        
+        Console.WriteLine($"[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202306");
+
+        // 1. Get User URN
+        string authorUrn;
+        try 
+        {
+            var userInfoResponse = await _httpClient.GetFromJsonAsync<LinkedInUserInfoResponse>($"{_settings.ApiUrl}/userinfo");
+            if (userInfoResponse == null) return (false, "Failed to fetch user info", null);
+            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error fetching profile: {ex.Message}", null);
+        }
+
+        // 2. Create Post Payload (UGC Post)
+        // keys containing dots must be handled explicitly, so we use Dictionary for the nested objects
+        var postPayload = new Dictionary<string, object>
+        {
+            { "author", authorUrn },
+            { "lifecycleState", "PUBLISHED" },
+            { "specificContent", new Dictionary<string, object>
+                {
+                    { "com.linkedin.ugc.ShareContent", new
+                        {
+                            shareCommentary = new
+                            {
+                                text = content
+                            },
+                            shareMediaCategory = "NONE"
+                        }
+                    }
+                }
+            },
+            { "visibility", new Dictionary<string, object>
+                {
+                    { "com.linkedin.ugc.MemberNetworkVisibility", "PUBLIC" }
+                }
+            }
+        };
+
+        // Serialize manually to string to ensure Content-Length is computed exactly and prevent chunking
+        var jsonPayload = System.Text.Json.JsonSerializer.Serialize(postPayload);
+        
+        var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiUrl}/ugcPosts");
+        requestMessage.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+        
+        // Force disable chunked encoding to satisfy LinkedIn's strict server
+        requestMessage.Headers.TransferEncodingChunked = false;
+        
+        // --- LOGGING ---
+        Console.WriteLine($"[LinkedInService] Sending POST request to {_settings.ApiUrl}/ugcPosts");
+        Console.WriteLine($"[LinkedInService] Author URN: {authorUrn}");
+        
+        if (requestMessage.Content.Headers.ContentLength.HasValue)
+            Console.WriteLine($"[LinkedInService] Content-Length: {requestMessage.Content.Headers.ContentLength}");
+        
+        // ----------------
+
+        var response = await _httpClient.SendAsync(requestMessage);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+             var errorBody = await response.Content.ReadAsStringAsync();
+             Console.WriteLine($"[LinkedInService] ERROR: Status {response.StatusCode}");
+             Console.WriteLine($"[LinkedInService] Response Headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
+             Console.WriteLine($"[LinkedInService] Response Body: {errorBody}");
+             return (false, $"LinkedIn Error ({response.StatusCode}): {errorBody}", null);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<LinkedInUgcPostCreatedResponse>();
+        return result != null 
+            ? (true, null, new LinkedInPostCreatedResponse(result.id)) 
+            : (false, "Empty response from LinkedIn", null);
+    }
+
+    // Internal classes for JSON deserialization
+    private record LinkedInTokenResponseInternal(string access_token, int expires_in);
+    private record LinkedInUserInfoResponse(string sub, string name);
+    private record LinkedInUgcPostsResponse(List<LinkedInUgcPostElement> elements);
+    private record LinkedInUgcPostCreatedResponse(string id);
+    private record LinkedInUgcPostElement(string id, LinkedInSpecificContent specificContent, LinkedInCreationInfo created);
+    private record LinkedInSpecificContent(LinkedInShareContent shareContent);
+    private record LinkedInShareContent(LinkedInShareCommentary shareCommentary);
+    private record LinkedInShareCommentary(string text);
+    private record LinkedInCreationInfo(long time);
+}

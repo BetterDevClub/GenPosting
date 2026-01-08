@@ -1,0 +1,96 @@
+@page "/linkedin-callback"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject ILinkedInStateService LinkedInState
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 80vh;">
+    <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="3">
+        @if (_processing)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" Class="mb-4" />
+            <MudText>Completing LinkedIn Authorization...</MudText>
+        }
+        else
+        {
+             <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+             <MudText Typo="Typo.h6" Color="Color.Error">Authorization Failed</MudText>
+             <MudText Class="mb-4">@_errorMessage</MudText>
+             <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/linkedin">Back to Dashboard</MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error_description")]
+    public string? ErrorDescription { get; set; }
+
+    private bool _processing = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Error))
+        {
+            _processing = false;
+            _errorMessage = ErrorDescription ?? "Unknown error from LinkedIn";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Code))
+        {
+            _processing = false;
+            _errorMessage = "No authorization code received.";
+            return;
+        }
+
+        await ExchangeToken(Code);
+    }
+
+    private async Task ExchangeToken(string code)
+    {
+        try
+        {
+            // Must match the redirect URI used in the first step EXACTLY
+            var redirectUri = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
+            
+            // Be careful with query parameters in redirectUri during exchange, they might need to be stripped if the original didn't have them?
+            // Usually the redirect_uri sent to exchange token must match the one sent to auth url WITHOUT the code attached.
+            // Nav.ToAbsoluteUri("/linkedin-callback").ToString() gives the base path without query params if we just ask for path? 
+            // Actually let's use Nav.BaseUri + "linkedin-callback" to be safe and consistent.
+            
+            var baseRedirectUri = $"{Nav.BaseUri}linkedin-callback";
+
+            var request = new LinkedInExchangeTokenRequest(code, baseRedirectUri);
+            var response = await Http.PostAsJsonAsync("/api/linkedin/exchange", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var token = await response.Content.ReadFromJsonAsync<LinkedInTokenResponse>();
+                if (token != null)
+                {
+                    LinkedInState.AccessToken = token.AccessToken;
+                    Snackbar.Add("LinkedIn Connected Successfully!", Severity.Success);
+                    Nav.NavigateTo("/linkedin");
+                    return;
+                }
+            }
+            
+            _processing = false;
+            _errorMessage = "Failed to exchange token with server.";
+        }
+        catch (Exception ex)
+        {
+            _processing = false;
+            _errorMessage = $"Error: {ex.Message}";
+        }
+    }
+}

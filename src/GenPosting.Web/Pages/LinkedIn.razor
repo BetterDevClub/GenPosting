@@ -1,0 +1,201 @@
+@page "/linkedin"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject ILinkedInStateService LinkedInState
+@inject ISnackbar Snackbar
+
+<PageTitle>LinkedIn Dashboard</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">LinkedIn Dashboard</MudText>
+
+@if (!LinkedInState.IsAuthenticated)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center justify-center" Elevation="2">
+        <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Large" Color="Color.Primary" Class="mb-4" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="mb-4">Connect your LinkedIn Account</MudText>
+        <MudText Typo="Typo.body1" Class="mb-6">Connect to view your posts and analytics.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="ConnectLinkedIn" StartIcon="@Icons.Custom.Brands.LinkedIn">
+            Connect LinkedIn
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 d-flex justify-space-between align-center">
+                <MudText Typo="Typo.h6">Connected Account</MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Disconnect">Disconnect</MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Create New Post</MudText>
+                <MudTextField @bind-Value="_newPostContent" Label="What do you want to talk about?" Variant="Variant.Outlined" Lines="4" Class="mb-4" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || string.IsNullOrWhiteSpace(_newPostContent))">
+                    @if (_posting)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                        <MudText Class="ms-2">Posting...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Post</MudText>
+                    }
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudText Typo="Typo.h5" Class="mt-4 mb-2">Recent Posts</MudText>
+            
+            @if (_loading)
+            {
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            }
+            else if (_posts == null || !_posts.Any())
+            {
+                <MudAlert Severity="Severity.Info">No posts found or unable to fetch posts.</MudAlert>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var post in _posts)
+                    {
+                        <MudItem xs="12" md="6" lg="4">
+                            <MudCard>
+                                <MudCardContent>
+                                    <MudText Typo="Typo.caption">@post.PublishedAt.ToString("g")</MudText>
+                                    <MudText Typo="Typo.body2" Class="mt-2 text-truncate" Style="height: 60px;">@post.Content</MudText>
+                                    <MudDivider Class="my-2"/>
+                                    <div class="d-flex justify-space-between">
+                                        <MudText Typo="Typo.caption"><MudIcon Icon="@Icons.Material.Filled.ThumbUp" Size="Size.Small"/> @post.Metrics.Likes</MudText>
+                                        <MudText Typo="Typo.caption"><MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small"/> @post.Metrics.Comments</MudText>
+                                        <MudText Typo="Typo.caption"><MudIcon Icon="@Icons.Material.Filled.Share" Size="Size.Small"/> @post.Metrics.Shares</MudText>
+                                        <MudText Typo="Typo.caption"><MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"/> @post.Metrics.Views</MudText>
+                                    </div>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private List<LinkedInPostDto>? _posts;
+    private bool _loading = false;
+    private bool _posting = false;
+    private string _newPostContent = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (LinkedInState.IsAuthenticated)
+        {
+            await LoadPosts();
+        }
+    }
+
+    private async Task CreatePost()
+    {
+        if (string.IsNullOrWhiteSpace(_newPostContent)) return;
+
+        _posting = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
+            request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent));
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Post created successfully!", Severity.Success);
+                _newPostContent = string.Empty;
+                await LoadPosts(); // Refresh list
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to create post. Status: {response.StatusCode}. {errorMsg}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating post: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _posting = false;
+        }
+    }
+
+    private async Task ConnectLinkedIn()
+    {
+        try
+        {
+            var callbackUrl = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
+            // Encode the callback URL properly for the query parameter
+            var encodedCallback = Uri.EscapeDataString(callbackUrl);
+            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url?redirectUri={encodedCallback}");
+            
+            if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
+            {
+                Nav.NavigateTo(response.AuthUrl, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Failed to get authorization URL", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadPosts()
+    {
+        _loading = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/posts");
+            request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _posts = await response.Content.ReadFromJsonAsync<List<LinkedInPostDto>>();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Snackbar.Add("Session expired. Please reconnect.", Severity.Warning);
+                Disconnect();
+            }
+            else
+            {
+                Snackbar.Add($"Failed to load posts. Status: {response.StatusCode}", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading posts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Disconnect()
+    {
+        LinkedInState.AccessToken = null;
+        _posts = null;
+        Snackbar.Add("Disconnected", Severity.Success);
+    }
+}

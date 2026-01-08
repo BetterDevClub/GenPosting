@@ -1,0 +1,53 @@
+﻿@page "/"
+@inject HttpClient Http
+
+<PageTitle>GenPosting Home</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">GenPosting</MudText>
+<MudText Class="mb-4">Welcome to your new app built with Vertical Slices, Minimal APIs, and MudBlazor.</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.h5">API Connectivity Test</MudText>
+    @if (_apiResponse == null)
+    {
+        <MudText>Loading API status...</MudText>
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Success">@_apiResponse</MudAlert>
+    }
+    
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="CheckApi">Re-check API</MudButton>
+</MudPaper>
+
+@code {
+    private string? _apiResponse;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckApi();
+    }
+
+    private async Task CheckApi()
+    {
+        try
+        {
+            // Note: Update the URL to match your running API port if running separately.
+            // For now, we assume standard localhost:5000 or similar, but since we don't know the port,
+            // we might get a CORS error or 404 if not configured correctly.
+            // For this demo, let's assume the user configures the base address or we just try a relative path if proxied.
+             // If we are strictly separate, we need the full URL. 
+            
+            // Allow user to set URL or just try a hardcoded common one for the demo
+             var response = await Http.GetFromJsonAsync<ApiStatus>("/api/test");
+             _apiResponse = $"Connected! Message: {response?.Message} at {response?.Timestamp}";
+        }
+        catch (Exception ex)
+        {
+            _apiResponse = $"Error connecting to API: {ex.Message}. Make sure API is running.";
+        }
+    }
+
+    public record ApiStatus(string Message, DateTime Timestamp);
+}
