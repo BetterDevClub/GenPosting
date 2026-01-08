@@ -20,3 +20,5 @@ public record LinkedInPostMetricsDto(
 
 public record CreateLinkedInPostRequest(string Content);
 public record LinkedInPostCreatedResponse(string Id);
+
+public record LinkedInProfileDto(string Name, string? PictureUrl);

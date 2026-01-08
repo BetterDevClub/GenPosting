@@ -1,0 +1,100 @@
+@using MudBlazor
+
+<MudPaper Class="pa-4 rounded-lg" Elevation="0" Style="background-color: #1b1f23; border: 1px solid #30363d; color: white;">
+    <!-- Tools Header -->
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div class="d-flex align-center gap-2">
+            <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Post Preview</MudText>
+            <MudTooltip Text="This is a preview of how your post will appear on LinkedIn.">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Style="color: #8b949e; font-size: 1rem;" />
+            </MudTooltip>
+        </div>
+        
+        <div class="d-flex align-center gap-2">
+             <MudPaper Class="d-flex align-center px-2 py-1 rounded" Style="background-color: #21262d; border: 1px solid #30363d;">
+                <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Small" Color="Color.Info" Class="mr-2" />
+                <MudText Typo="Typo.caption" Style="color: #c9d1d9;">LinkedIn</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" Style="color: #8b949e;" />
+             </MudPaper>
+
+             <MudButtonGroup OverrideStyles="false" Class="rounded border-0">
+                 <MudIconButton Icon="@Icons.Material.Filled.DesktopMac" Size="Size.Small" 
+                               Style="@(IsMobile ? "color: #484f58;" : "color: #c9d1d9; background-color: #21262d;")" 
+                               OnClick="@(() => IsMobile = false)" />
+                 <MudIconButton Icon="@Icons.Material.Filled.Smartphone" Size="Size.Small" 
+                               Style="@(IsMobile ? "color: #c9d1d9; background-color: #21262d;" : "color: #484f58;")" 
+                               OnClick="@(() => IsMobile = true)" />
+             </MudButtonGroup>
+        </div>
+    </div>
+
+    <!-- The actual LinkedIn Card -->
+    <!-- Max width simulates feed width. Mobile is narrower. -->
+    <MudPaper Class="mx-auto overflow-hidden" 
+              Elevation="0" 
+              Style="@($"background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px; max-width: {(IsMobile ? "350px" : "555px")}; transition: max-width 0.3s ease;")">
+        
+        <!-- Post Header -->
+        <div class="pa-3 d-flex gap-3">
+             @if (!string.IsNullOrEmpty(AuthorAvatarUrl))
+             {
+                 <MudAvatar Image="@AuthorAvatarUrl" Size="Size.Medium" />
+             }
+             else
+             {
+                 <MudAvatar Color="Color.Secondary" Size="Size.Medium">@AuthorName.FirstOrDefault()</MudAvatar>
+             }
+
+             <div class="d-flex flex-column justify-center">
+                 <MudText Typo="Typo.subtitle2" Style="font-weight: 600; line-height: 1.2; color: #e1e9ee;">@AuthorName</MudText>
+                 <MudText Typo="Typo.caption" Style="color: #a0b2b8; display: flex; align-items: center; gap: 4px;">
+                     now • <MudIcon Icon="@Icons.Material.Filled.Public" Size="Size.Small" Style="font-size: 12px;"/>
+                 </MudText>
+             </div>
+             
+             <MudSpacer />
+             
+             <MudIconButton Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Style="color: #a0b2b8;" />
+        </div>
+
+        <!-- Post Body -->
+        <div class="px-3 pb-2">
+            @if (string.IsNullOrWhiteSpace(Content))
+            {
+                 <MudText Typo="Typo.body2" Style="color: #7d8590; font-style: italic;">Start writing to preview...</MudText>
+            }
+            else
+            {
+                 <MudText Typo="Typo.body2" Style="white-space: pre-wrap; color: #e1e9ee; font-family: -apple-system,system-ui,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Fira Sans,Ubuntu,Oxygen,Oxygen Sans,Cantarell,Droid Sans,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Lucida Grande,Helvetica,Arial,sans-serif;">@Content</MudText>
+            }
+        </div>
+
+        <!-- Optional Image Area -->
+        @if (!string.IsNullOrEmpty(ImageUrl))
+        {
+            <MudImage Src="@ImageUrl" Fluid="true" Class="w-100" Style="display: block;" />
+        }
+        else
+        {
+             <div style="height: 12px;"></div> <!-- Spacer if no image -->
+        }
+
+        <!-- Footer Actions -->
+        <div class="px-2 py-1 border-t border-color-dark d-flex justify-space-between" style="border-top: 1px solid #333;">
+            <MudButton StartIcon="@Icons.Material.Filled.ThumbUp" Color="Color.Inherit" Class="rounded" Variant="Variant.Text" Style="text-transform: none; color: #a0b2b8; font-weight: 600;">Like</MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Comment" Color="Color.Inherit" Class="rounded" Variant="Variant.Text" Style="text-transform: none; color: #a0b2b8; font-weight: 600;">Comment</MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Repeat" Color="Color.Inherit" Class="rounded" Variant="Variant.Text" Style="text-transform: none; color: #a0b2b8; font-weight: 600;">Repost</MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Send" Color="Color.Inherit" Class="rounded" Variant="Variant.Text" Style="text-transform: none; color: #a0b2b8; font-weight: 600;">Send</MudButton>
+        </div>
+
+    </MudPaper>
+</MudPaper>
+
+@code {
+    [Parameter] public string AuthorName { get; set; } = "Your Name";
+    [Parameter] public string? AuthorAvatarUrl { get; set; }
+    [Parameter] public string Content { get; set; } = "";
+    [Parameter] public string? ImageUrl { get; set; }
+
+    private bool IsMobile { get; set; } = false;
+}

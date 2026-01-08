@@ -9,6 +9,7 @@ public interface ILinkedInService
     string GetAuthorizationUrl(string redirectUri);
     Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
     Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
+    Task<LinkedInProfileDto?> GetProfileAsync(string accessToken);
     Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content);
 }
 
@@ -110,6 +111,21 @@ public class LinkedInService : ILinkedInService
         }
     }
 
+    public async Task<LinkedInProfileDto?> GetProfileAsync(string accessToken)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        try 
+        {
+            var userInfo = await _httpClient.GetFromJsonAsync<LinkedInUserInfoResponse>($"{_settings.ApiUrl}/userinfo");
+            return userInfo != null ? new LinkedInProfileDto(userInfo.name, userInfo.picture) : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[LinkedInService] Error fetching profile: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content)
     {
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -198,7 +214,7 @@ public class LinkedInService : ILinkedInService
 
     // Internal classes for JSON deserialization
     private record LinkedInTokenResponseInternal(string access_token, int expires_in);
-    private record LinkedInUserInfoResponse(string sub, string name);
+    private record LinkedInUserInfoResponse(string sub, string name, string picture);
     private record LinkedInUgcPostsResponse(List<LinkedInUgcPostElement> elements);
     private record LinkedInUgcPostCreatedResponse(string id);
     private record LinkedInUgcPostElement(string id, LinkedInSpecificContent specificContent, LinkedInCreationInfo created);

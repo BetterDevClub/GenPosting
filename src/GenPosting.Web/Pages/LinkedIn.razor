@@ -34,18 +34,27 @@ else
         <MudItem xs="12">
             <MudPaper Class="pa-4">
                 <MudText Typo="Typo.h6" Class="mb-4">Create New Post</MudText>
-                <MudTextField @bind-Value="_newPostContent" Label="What do you want to talk about?" Variant="Variant.Outlined" Lines="4" Class="mb-4" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || string.IsNullOrWhiteSpace(_newPostContent))">
-                    @if (_posting)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                        <MudText Class="ms-2">Posting...</MudText>
-                    }
-                    else
-                    {
-                        <MudText>Post</MudText>
-                    }
-                </MudButton>
+                
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                         <MudTextField @bind-Value="_newPostContent" Label="What do you want to talk about?" Variant="Variant.Outlined" Lines="8" Class="mb-4" HelperText="Write your post content here." Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Edit" />
+                         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || string.IsNullOrWhiteSpace(_newPostContent))" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Send">
+                            @if (_posting)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                <MudText Class="ms-2">Posting...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Post Now</MudText>
+                            }
+                        </MudButton>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                         <GenPosting.Web.Components.LinkedInPostPreview Content="@_newPostContent" AuthorName="@(_profile?.Name ?? "Your Name")" AuthorAvatarUrl="@(_profile?.PictureUrl)" /> 
+                    </MudItem>
+                </MudGrid>
             </MudPaper>
         </MudItem>
 
@@ -89,6 +98,7 @@ else
 
 @code {
     private List<LinkedInPostDto>? _posts;
+    private LinkedInProfileDto? _profile;
     private bool _loading = false;
     private bool _posting = false;
     private string _newPostContent = string.Empty;
@@ -97,7 +107,26 @@ else
     {
         if (LinkedInState.IsAuthenticated)
         {
+            await LoadProfile();
             await LoadPosts();
+        }
+    }
+
+    private async Task LoadProfile()
+    {
+        try 
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/profile");
+            request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _profile = await response.Content.ReadFromJsonAsync<LinkedInProfileDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
         }
     }
 

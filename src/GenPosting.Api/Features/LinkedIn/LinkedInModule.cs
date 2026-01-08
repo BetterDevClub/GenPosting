@@ -25,6 +25,13 @@ public class LinkedInModule : ICarterModule
             return Results.Ok(token);
         });
 
+        group.MapGet("/profile", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, ILinkedInService service) =>
+        {
+            if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
+            var profile = await service.GetProfileAsync(accessToken);
+            return profile != null ? Results.Ok(profile) : Results.NotFound();
+        });
+
         group.MapGet("/posts", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, ILinkedInService service) =>
         {
             if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
