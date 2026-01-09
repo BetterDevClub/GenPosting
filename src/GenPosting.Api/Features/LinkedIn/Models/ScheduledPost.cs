@@ -12,6 +12,7 @@ public class ScheduledPost
     public List<string>? Comments { get; set; }
     public DateTimeOffset ScheduledTime { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? ThumbnailUrl { get; set; }
     public bool IsPublished { get; set; } = false;
     public string? Status { get; set; } = "Pending";
 }

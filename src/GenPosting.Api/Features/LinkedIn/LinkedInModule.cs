@@ -84,7 +84,8 @@ public class LinkedInModule : ICarterModule
                     MediaUrns = request.MediaUrns,
                     MediaType = request.MediaType,
                     Comments = request.Comments,
-                    ScheduledTime = request.ScheduledAt.Value
+                    ScheduledTime = request.ScheduledAt.Value,
+                    ThumbnailUrl = request.ThumbnailUrl
                 };
 
                 await scheduler.SchedulePostAsync(scheduledPost);
@@ -113,7 +114,7 @@ public class LinkedInModule : ICarterModule
         group.MapGet("/scheduled", async (IScheduledPostService scheduler) =>
         {
             var posts = await scheduler.GetAllScheduledPostsAsync();
-            var dtos = posts.Select(p => new ScheduledPostDto(p.Id, p.Content, p.MediaUrns, p.MediaType, p.Comments, p.ScheduledTime, p.Status ?? "Pending"));
+            var dtos = posts.Select(p => new ScheduledPostDto(p.Id, p.Content, p.MediaUrns, p.MediaType, p.Comments, p.ScheduledTime, p.Status ?? "Pending", p.ThumbnailUrl));
             return Results.Ok(dtos);
         });
         
@@ -121,7 +122,7 @@ public class LinkedInModule : ICarterModule
         {
             var post = await scheduler.GetScheduledPostByIdAsync(id);
             if (post == null) return Results.NotFound();
-            return Results.Ok(new ScheduledPostDto(post.Id, post.Content, post.MediaUrns, post.MediaType, post.Comments, post.ScheduledTime, post.Status ?? "Pending"));
+            return Results.Ok(new ScheduledPostDto(post.Id, post.Content, post.MediaUrns, post.MediaType, post.Comments, post.ScheduledTime, post.Status ?? "Pending", post.ThumbnailUrl));
         });
 
         group.MapDelete("/scheduled/{id}", async (Guid id, IScheduledPostService scheduler) =>
@@ -140,6 +141,7 @@ public class LinkedInModule : ICarterModule
             post.MediaType = request.MediaType;
             post.Comments = request.Comments;
             post.ScheduledTime = request.ScheduledTime;
+            if (request.ThumbnailUrl != null) post.ThumbnailUrl = request.ThumbnailUrl;
 
             await scheduler.UpdateScheduledPostAsync(post);
             return Results.Ok();

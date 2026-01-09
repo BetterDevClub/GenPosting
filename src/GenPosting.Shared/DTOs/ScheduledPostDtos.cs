@@ -7,7 +7,8 @@ public record ScheduledPostDto(
     string MediaType,
     List<string>? Comments,
     DateTimeOffset ScheduledTime,
-    string Status
+    string Status,
+    string? ThumbnailUrl = null
 );
 
 public record UpdateScheduledPostRequest(
@@ -15,5 +16,6 @@ public record UpdateScheduledPostRequest(
     List<string>? MediaUrns,
     string MediaType,
     List<string>? Comments,
-    DateTimeOffset ScheduledTime
+    DateTimeOffset ScheduledTime,
+    string? ThumbnailUrl = null
 );

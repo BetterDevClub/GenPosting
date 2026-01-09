@@ -339,9 +339,16 @@ else
             StateHasChanged();
 
             // 2. Post Creation
+            // Extract a thumbnail URL (just the first image) if available, for local display
+            string? validThumbnailUrl = null;
+            if (_previewImages.Any())
+            {
+               validThumbnailUrl = _previewImages.First();
+            }
+
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
             request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType, _comments, scheduledAt));
+            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType, _comments, scheduledAt, validThumbnailUrl));
 
             var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)

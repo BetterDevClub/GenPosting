@@ -5,80 +5,132 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 px-8" Style="height: calc(100vh - 80px); display: flex; flex-direction: column;">
     <!-- Header / Toolbar -->
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-        <MudText Typo="Typo.h5" Class="mr-4">@GetDateRangeLabel()</MudText>
+    <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex align-center gap-4 rounded-xl" Style="background-color: transparent;">
+        <MudText Typo="Typo.h4" Style="font-weight: 700;">@GetDateRangeLabel()</MudText>
         
-        <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+        <MudButtonGroup Variant="Variant.Outlined" Class="ml-4 rounded-lg bg-surface">
             <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="Previous" />
-            <MudButton OnClick="GoToday">Today</MudButton>
+            <MudButton OnClick="GoToday" Class="px-6 font-weight-bold">Today</MudButton>
             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="Next" />
         </MudButtonGroup>
         
         <MudSpacer />
+
+        <div class="d-flex align-center gap-2 bg-surface pa-1 rounded-lg border-solid border-1 mud-border-lines-default">
+             <MudIconButton Icon="@Icons.Material.Filled.ViewWeek" 
+                           Color="@(_currentView == CalendarViewType.Week ? Color.Primary : Color.Default)"
+                           OnClick="@(() => _currentView = CalendarViewType.Week)" 
+                           Title="Week View"/>
+             <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth" 
+                           Color="@(_currentView == CalendarViewType.Month ? Color.Primary : Color.Default)"
+                           OnClick="@(() => _currentView = CalendarViewType.Month)"
+                           Title="Month View"/>
+        </div>
         
-        <MudSelect T="CalendarViewType" @bind-Value="_currentView" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="width: 150px">
-            <MudSelectItem Value="CalendarViewType.Week">Weekly view</MudSelectItem>
-            <MudSelectItem Value="CalendarViewType.Month">Monthly view</MudSelectItem>
-        </MudSelect>
-    </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/linkedin" Class="ml-4 rounded-lg py-2">Create Post</MudButton>
+    </MudPaper>
 
     <!-- Calendar Content -->
     @if (_loading)
     {
-        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <div class="d-flex justify-center align-center flex-grow-1">
+             <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        </div>
     }
     else
     {
         @if (_currentView == CalendarViewType.Week)
         {
-            <MudGrid Spacing="0" Style="height: 80vh; border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; overflow: hidden;">
-                @for (int i = 0; i < 7; i++)
-                {
-                    var day = _currentWeekStart.AddDays(i);
-                    var isToday = day.Date == DateTime.Today;
-                    var dayPosts = GetPostsForDay(day);
-                    
-                    <MudItem xs="12" sm="1" Style="width: 14.28%; border-right: 1px solid var(--mud-palette-lines-default); display: flex; flex-direction: column;">
-                        <!-- Column Header -->
-                        <div class="pa-2 border-b-1 muda-border-lines-default @(isToday ? "mud-theme-primary-light" : "")" >
-                            <MudText Typo="Typo.body2" Align="Align.Center">@day.ToString("dddd")</MudText>
-                            <MudText Typo="Typo.body1" Align="Align.Center" Style="font-weight: bold;">@day.ToString("d MMM")</MudText>
-                        </div>
+            <MudPaper Elevation="0" Class="flex-grow-1 d-flex rounded-xl overflow-hidden border-solid border-1 mud-border-lines-default" Style="background-color: var(--mud-palette-background);">
+                <div class="d-flex flex-grow-1" style="height: 100%;">
+                    @for (int i = 0; i < 7; i++)
+                    {
+                        var day = _currentWeekStart.AddDays(i);
+                        var isToday = day.Date == DateTime.Today;
+                        var dayPosts = GetPostsForDay(day);
+                        bool isLast = i == 6;
                         
-                        <!-- Column Body (Posts) -->
-                        <div class="pa-2 flex-grow-1" style="overflow-y: auto; background-color: var(--mud-palette-background-grey);">
-                            @foreach (var post in dayPosts)
-                            {
-                                <MudPaper Class="pa-2 mb-2 cursor-pointer" Elevation="1" @onclick="@(() => OpenEditDialog(post))">
-                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                         <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Small" Color="Color.Primary" />
-                                         <MudText Typo="Typo.caption">@post.ScheduledTime.ToLocalTime().ToString("t")</MudText>
-                                    </MudStack>
-                                    
-                                    @if (!string.IsNullOrEmpty(post.Content))
-                                    {
-                                        <MudText Typo="Typo.body2" Class="mt-1" Style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
-                                            @post.Content
-                                        </MudText>
-                                    }
-                                    
-                                    @if (post.MediaUrns != null && post.MediaUrns.Any())
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Small" Class="mt-1"/>
-                                    }
-                                </MudPaper>
-                            }
+                        <div style="width: 14.28%; display: flex; flex-direction: column; @(isLast ? "" : "border-right: 1px solid var(--mud-palette-lines-default);")" class="@(isToday ? "rgba(var(--mud-palette-primary-rgb), 0.05)" : "")">
+                            
+                            <!-- Column Header -->
+                            <div class="pa-4 pt-6 text-center border-b-1 mud-border-lines-default @(isToday ? "mud-theme-primary-light" : "")" style="@(isToday ? "background-color: rgba(var(--mud-palette-primary-rgb), 0.1);" : "background-color: var(--mud-palette-surface);")">
+                                <MudText Typo="Typo.subtitle2" Color="@(isToday ? Color.Primary : Color.Default)" Class="mb-1" Style="text-transform: uppercase; letter-spacing: 1px;">
+                                    @day.ToString("ddd")
+                                </MudText>
+                                <MudText Typo="Typo.h4" Color="@(isToday ? Color.Primary : Color.Default)" Style="font-weight: 700;">
+                                    @day.Day
+                                </MudText>
+                            </div>
+                            
+                            <!-- Column Body (Posts) -->
+                            <div class="pa-3 flex-grow-1" style="overflow-y: auto; background-color: @(isToday ? "rgba(var(--mud-palette-primary-rgb), 0.02)" : "var(--mud-palette-background-grey)");">
+                                @foreach (var post in dayPosts)
+                                {
+                                    <MudPaper Class="pa-3 mb-3 cursor-pointer mud-ripple transition-all hover:elevation-4" 
+                                              Elevation="1" 
+                                              @onclick="@(() => OpenEditDialog(post))"
+                                              Style="border-radius: 12px; border-left: 4px solid var(--mud-palette-primary);">
+                                        
+                                        <div class="d-flex justify-space-between align-start mb-2">
+                                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                                 <MudAvatar Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Style="font-size: 0.8rem;">
+                                                     <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Small"/>
+                                                 </MudAvatar>
+                                                 <MudText Typo="Typo.caption" Style="font-weight: 600;">@post.ScheduledTime.ToLocalTime().ToString("HH:mm")</MudText>
+                                             </MudStack>
+                                             @if(post.Status == "Draft") 
+                                             {
+                                                 <MudIcon Icon="@Icons.Material.Filled.EditNote" Size="Size.Small" Color="Color.Warning"/>
+                                             }
+                                        </div>
+                                        
+                                        @if(!string.IsNullOrEmpty(post.ThumbnailUrl))
+                                        {
+                                            <MudImage Src="@post.ThumbnailUrl" ObjectFit="ObjectFit.Cover" Style="width: 100%; height: 80px; border-radius: 8px; margin-bottom: 8px;" />
+                                        }
+
+                                        @if (!string.IsNullOrEmpty(post.Content))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mb-2" Style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">
+                                                @post.Content
+                                            </MudText>
+                                        }
+                                        
+                                        <div class="d-flex gap-2">
+                                            @if (post.MediaUrns != null && post.MediaUrns.Any())
+                                            {
+                                                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Image" Variant="Variant.Text" Color="Color.Primary">Media</MudChip>
+                                            }
+                                            @if (post.Comments != null && post.Comments.Any())
+                                            {
+                                                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Comment" Variant="Variant.Text" Color="Color.Secondary">@post.Comments.Count</MudChip>
+                                            }
+                                        </div>
+                                    </MudPaper>
+                                }
+                                
+                                @if (isToday)
+                                {
+                                    <div class="pt-4 d-flex justify-center" style="opacity: 0.0;">
+                                         <!-- Spacer/Indicator for today -->
+                                    </div>
+                                }
+                            </div>
                         </div>
-                    </MudItem>
-                }
-            </MudGrid>
+                    }
+                </div>
+            </MudPaper>
         }
         else // Monthly View (Basic Implementation)
         {
-             <MudText>Monthly view is under construction. Please switch to Weekly view.</MudText>
-             <!-- Placeholder for future implementation -->
+             <MudPaper Class="pa-8 d-flex flex-column align-center justify-center rounded-xl border-dashed border-2 mud-border-primary" Style="height: 60vh; background-color: rgba(var(--mud-palette-primary-rgb), 0.05);">
+                 <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Large" Color="Color.Primary" Style="font-size: 4rem;" Class="mb-4" />
+                 <MudText Typo="Typo.h5" GutterBottom="true">Monthly view coming soon</MudText>
+                 <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">We are working on a great monthly overview for your posts.</MudText>
+                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => _currentView = CalendarViewType.Week)">Switch to Weekly View</MudButton>
+             </MudPaper>
         }
     }
 
