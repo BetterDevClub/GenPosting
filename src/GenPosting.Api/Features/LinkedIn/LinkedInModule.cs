@@ -72,6 +72,18 @@ public class LinkedInModule : ICarterModule
             var (success, error, data) = await service.CreatePostAsync(accessToken, request.Content, request.MediaUrns, request.MediaType);
             if (!success) return Results.BadRequest($"Failed to create post on LinkedIn. Details: {error}");
 
+            // Handle follow-up comments
+            if (request.Comments != null && request.Comments.Any())
+            {
+                foreach (var comment in request.Comments)
+                {
+                    if (!string.IsNullOrWhiteSpace(comment))
+                    {
+                        await service.AddCommentAsync(accessToken, data!.Id, comment);
+                    }
+                }
+            }
+
             return Results.Ok(data);
         });
     }

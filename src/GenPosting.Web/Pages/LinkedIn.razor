@@ -60,6 +60,19 @@ else
                              <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearFiles" Class="mt-2">Clear Media</MudButton>
                          }
 
+                         <MudDivider Class="my-4"/>
+                         <MudText Typo="Typo.subtitle2" Class="mb-2">Follow-up Comments</MudText>
+                         @for (int i = 0; i < _comments.Count; i++)
+                         {
+                             var index = i; 
+                             <div class="d-flex gap-2 mb-2">
+                                <MudTextField Value="@_comments[index]" ValueChanged="@((string s) => _comments[index] = s)" Label="@($"Comment #{index+1}")" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true"/>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => RemoveComment(index))" />
+                             </div>
+                         }
+                         <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField">Add Follow-up Comment</MudButton>
+
+
                          <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any())))" FullWidth="true" Class="mt-4 py-2" StartIcon="@Icons.Material.Filled.Send">
                             @if (_posting)
                             {
@@ -129,6 +142,14 @@ else
     private List<string> _previewImages = new();
     private string? _previewVideoUrl;
     private int _uploadProgress = 0;
+    
+    private List<string> _comments = new();
+
+    private void AddCommentField() => _comments.Add(string.Empty);
+    private void RemoveComment(int index)
+    {
+         if (index >= 0 && index < _comments.Count) _comments.RemoveAt(index);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -266,7 +287,7 @@ else
             // 2. Post Creation
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
             request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType));
+            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType, _comments));
 
             var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
@@ -274,6 +295,7 @@ else
                 Snackbar.Add("Post created successfully!", Severity.Success);
                 _newPostContent = string.Empty;
                 ClearFiles();
+                _comments.Clear();
                 await LoadPosts(); 
             }
             else

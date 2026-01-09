@@ -11,6 +11,7 @@ public interface ILinkedInService
     Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
     Task<LinkedInProfileDto?> GetProfileAsync(string accessToken);
     Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo);
+    Task<bool> AddCommentAsync(string accessToken, string postUrn, string commentText);
     Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE");
 }
 
@@ -192,6 +193,59 @@ public class LinkedInService : ILinkedInService
         }
 
         return new LinkedInUploadResponse(assetUrn);
+    }
+
+    public async Task<bool> AddCommentAsync(string accessToken, string postUrn, string commentText)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        _httpClient.DefaultRequestHeaders.Remove("X-Restli-Protocol-Version");
+        _httpClient.DefaultRequestHeaders.Remove("LinkedIn-Version");
+        _httpClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        _httpClient.DefaultRequestHeaders.Add("LinkedIn-Version", "202306");
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        var authorUrn = await GetAuthorUrnInternalAsync();
+        if (authorUrn == null) return false;
+
+        var payload = new 
+        {
+            actor = authorUrn,
+            @object = postUrn,
+            message = new { text = commentText }
+        };
+        
+        var jsonPayload = System.Text.Json.JsonSerializer.Serialize(payload);
+        var encodedUrn = Uri.EscapeDataString(postUrn);
+        
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiUrl}/socialActions/{encodedUrn}/comments");
+        request.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+        request.Headers.TransferEncodingChunked = false; // FIX: Prevent protocol violation
+        
+        var response = await _httpClient.SendAsync(request);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+             var err = await response.Content.ReadAsStringAsync();
+             Console.WriteLine($"[LinkedInService] Add Comment Failed: {response.StatusCode} - {err}");
+             return false;
+        }
+        
+        Console.WriteLine($"[LinkedInService] Added comment to {postUrn}");
+        return true;
+    }
+
+    private async Task<string?> GetAuthorUrnInternalAsync()
+    {
+        try 
+        {
+            var userInfoResponse = await _httpClient.GetFromJsonAsync<LinkedInUserInfoResponse>($"{_settings.ApiUrl}/userinfo");
+            return userInfoResponse != null ? $"urn:li:person:{userInfoResponse.sub}" : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[LinkedInService] Error fetching profile: {ex.Message}");
+            return null;
+        }
     }
 
     public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE")
