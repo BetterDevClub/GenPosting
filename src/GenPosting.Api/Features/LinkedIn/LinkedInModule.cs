@@ -65,9 +65,31 @@ public class LinkedInModule : ICarterModule
             return Results.Ok(posts);
         });
 
-        group.MapPost("/post", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, [FromBody] CreateLinkedInPostRequest request, ILinkedInService service) =>
+        group.MapPost("/post", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, [FromBody] CreateLinkedInPostRequest request, ILinkedInService service, IScheduledPostService scheduler) =>
         {
             if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
+
+            // Handling Scheduling
+            if (request.ScheduledAt.HasValue)
+            {
+                if (request.ScheduledAt.Value <= DateTimeOffset.UtcNow)
+                {
+                    return Results.BadRequest("Scheduled time must be in the future.");
+                }
+
+                var scheduledPost = new GenPosting.Api.Features.LinkedIn.Models.ScheduledPost
+                {
+                    AccessToken = accessToken,
+                    Content = request.Content,
+                    MediaUrns = request.MediaUrns,
+                    MediaType = request.MediaType,
+                    Comments = request.Comments,
+                    ScheduledTime = request.ScheduledAt.Value
+                };
+
+                await scheduler.SchedulePostAsync(scheduledPost);
+                return Results.Ok(new LinkedInPostCreatedResponse(scheduledPost.Id.ToString(), IsScheduled: true));
+            }
             
             var (success, error, data) = await service.CreatePostAsync(accessToken, request.Content, request.MediaUrns, request.MediaType);
             if (!success) return Results.BadRequest($"Failed to create post on LinkedIn. Details: {error}");

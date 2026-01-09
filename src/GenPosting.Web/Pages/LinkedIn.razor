@@ -93,18 +93,52 @@ else
                          }
                          <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField">Add Follow-up Comment</MudButton>
 
+                         @* Scheduling UI *@
+                         @if (_showScheduleOptions)
+                         {
+                             <MudPaper Class="pa-4 my-4" Elevation="0" Outlined="true">
+                                 <MudText Typo="Typo.subtitle2" Class="mb-2">Schedule Post</MudText>
+                                 <div class="d-flex gap-4">
+                                     <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" />
+                                     <MudTimePicker Label="Time" @bind-Time="_scheduledTime" />
+                                 </div>
+                                 <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="@(() => _showScheduleOptions = false)" Class="mt-2">Cancel Schedule</MudButton>
+                             </MudPaper>
+                         }
 
-                         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any())))" FullWidth="true" Class="mt-4 py-2" StartIcon="@Icons.Material.Filled.Send">
-                            @if (_posting)
+                         <div class="d-flex gap-2 mt-4">
+                            @if (!_showScheduleOptions)
                             {
-                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                                <MudText Class="ms-2">Posting... @(_uploadProgress > 0 ? $"{_uploadProgress}%" : "")</MudText>
+                                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@IsPostDisabled" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Send">
+                                    @if (_posting)
+                                    {
+                                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                        <MudText Class="ms-2">Posting... @(_uploadProgress > 0 ? $"{_uploadProgress}%" : "")</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>Post Now</MudText>
+                                    }
+                                </MudButton>
+                                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@(() => _showScheduleOptions = true)" Disabled="@IsPostDisabled" StartIcon="@Icons.Material.Filled.Schedule">
+                                    Schedule
+                                </MudButton>
                             }
                             else
                             {
-                                <MudText>Post Now</MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="SchedulePost" Disabled="@IsPostDisabled" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Check">
+                                     @if (_posting)
+                                     {
+                                         <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                         <MudText Class="ms-2">Scheduling...</MudText>
+                                     }
+                                     else
+                                     {
+                                         <MudText>Confirm Schedule</MudText>
+                                     }
+                                </MudButton>
                             }
-                        </MudButton>
+                         </div>
                     </MudItem>
                     
                     <MudItem xs="12" md="6">
@@ -127,6 +161,13 @@ else
     private int _uploadProgress = 0;
     
     private List<string> _comments = new();
+
+    // Scheduling
+    private bool _showScheduleOptions = false;
+    private DateTime? _scheduledDate = DateTime.Today;
+    private TimeSpan? _scheduledTime = DateTime.Now.TimeOfDay.Add(TimeSpan.FromMinutes(30)); 
+
+    private bool IsPostDisabled => _posting || (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any()));
 
     private void AddCommentField() => _comments.Add(string.Empty);
     private void RemoveComment(int index)
@@ -216,9 +257,37 @@ else
         }
     }
 
+    private async Task SchedulePost()
+    {
+        if (_scheduledDate == null || _scheduledTime == null)
+        {
+            Snackbar.Add("Please select both date and time.", Severity.Warning);
+            return;
+        }
+
+        var scheduledDateTime = _scheduledDate.Value.Add(_scheduledTime.Value);
+        // Use local to ensure user understands what he selected, but convert to offset carefully
+        // Assuming browser time is local, we treat this as local time and send Offset
+        var offset = DateTimeOffset.Now.Offset; 
+        var scheduledAt = new DateTimeOffset(scheduledDateTime, offset);
+
+        if (scheduledAt <= DateTimeOffset.Now)
+        {
+            Snackbar.Add("Scheduled time must be in the future.", Severity.Warning);
+            return;
+        }
+
+        await SubmitPost(scheduledAt);
+    }
+
     private async Task CreatePost()
     {
-        if (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any())) return;
+        await SubmitPost(null);
+    }
+
+    private async Task SubmitPost(DateTimeOffset? scheduledAt)
+    {
+        if (IsPostDisabled) return;
 
         _posting = true;
         _uploadProgress = 0;
@@ -226,7 +295,8 @@ else
         {
             var mediaUrns = new List<string>();
             var mediaType = "NONE";
-
+            
+            // ... (rest is creating request, which now takes scheduledAt)
             // 1. Upload Media step
             if (_files != null && _files.Any())
             {
@@ -238,10 +308,10 @@ else
                 {
                      count++;
                      _uploadProgress = (int)((count / (double)_files.Count) * 50); // First 50%
-                     StateHasChanged(); // Force UI update for progress
+                     StateHasChanged(); 
 
                      using var content = new MultipartFormDataContent();
-                     using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024); // 50MB limit
+                     using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024); 
                      using var fileContent = new StreamContent(stream);
                      fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
                      content.Add(fileContent, "file", file.Name);
@@ -268,25 +338,35 @@ else
             // 2. Post Creation
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
             request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType, _comments));
+            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType, _comments, scheduledAt));
 
             var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                Snackbar.Add("Post created successfully!", Severity.Success);
+                var result = await response.Content.ReadFromJsonAsync<LinkedInPostCreatedResponse>();
+                if (result != null && result.IsScheduled)
+                {
+                    Snackbar.Add($"Post scheduled for {scheduledAt:g}", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Post created successfully!", Severity.Success);
+                }
+                
                 _newPostContent = string.Empty;
                 ClearFiles();
                 _comments.Clear();
+                _showScheduleOptions = false;
             }
             else
             {
                 var errorMsg = await response.Content.ReadAsStringAsync();
-                Snackbar.Add($"Failed to create post. Status: {response.StatusCode}. {errorMsg}", Severity.Error);
+                Snackbar.Add($"Failed to {(scheduledAt.HasValue ? "schedule" : "create")} post. Status: {response.StatusCode}. {errorMsg}", Severity.Error);
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error creating post: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
         }
         finally
         {

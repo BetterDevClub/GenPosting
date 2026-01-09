@@ -1,5 +1,6 @@
 using Carter;
 using GenPosting.Api.Features.LinkedIn;
+using GenPosting.Api.Features.LinkedIn.Background;
 using GenPosting.Api.Features.LinkedIn.Services;
 using Scalar.AspNetCore;
 
@@ -12,6 +13,8 @@ builder.Services.AddCarter();
 // Register LinkedIn Feature Services
 builder.Services.Configure<LinkedInSettings>(builder.Configuration.GetSection("LinkedIn"));
 builder.Services.AddHttpClient<ILinkedInService, LinkedInService>();
+builder.Services.AddSingleton<IScheduledPostService, InMemoryScheduledPostService>();
+builder.Services.AddHostedService<PostPublisherBackgroundService>();
 
 builder.Services.AddCors(options =>
 {
