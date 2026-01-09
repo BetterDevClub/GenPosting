@@ -1,0 +1,124 @@
+@page "/settings"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject ILinkedInStateService LinkedInState
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">Settings</MudText>
+
+<MudPaper Class="pa-6" Elevation="2">
+    <MudText Typo="Typo.h5" Class="mb-4">Connected Accounts</MudText>
+    <MudDivider Class="mb-4" />
+
+    @* LinkedIn Section *@
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div class="d-flex align-center gap-4">
+            <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Large" Color="Color.Primary" Style="font-size: 3rem;" />
+            <div>
+                <MudText Typo="Typo.h6">LinkedIn</MudText>
+                @if (LinkedInState.IsAuthenticated)
+                {
+                    <div class="d-flex align-center gap-2 mt-1">
+                        @if (_profile != null)
+                        {
+                            <MudAvatar Size="Size.Small">
+                                @if (!string.IsNullOrEmpty(_profile.PictureUrl))
+                                {
+                                    <MudImage Src="@_profile.PictureUrl" />
+                                }
+                                else
+                                {
+                                    @(_profile.Name.FirstOrDefault())
+                                }
+                            </MudAvatar>
+                            <MudText Typo="Typo.body2">Connected as <b>@_profile.Name</b></MudText>
+                        }
+                        else
+                        {
+                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ms-2"/>
+                             <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Default">Not connected</MudText>
+                }
+            </div>
+        </div>
+
+        @if (!LinkedInState.IsAuthenticated)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConnectLinkedIn">Connect</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisconnectLinkedIn">Disconnect</MudButton>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    private LinkedInProfileDto? _profile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (LinkedInState.IsAuthenticated)
+        {
+            await LoadProfile();
+        }
+    }
+
+    private async Task LoadProfile()
+    {
+        try 
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/profile");
+            request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _profile = await response.Content.ReadFromJsonAsync<LinkedInProfileDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
+        }
+    }
+        
+
+    private async Task ConnectLinkedIn()
+    {
+        try
+        {
+            var callbackUrl = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
+            var encodedCallback = Uri.EscapeDataString(callbackUrl);
+            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url?redirectUri={encodedCallback}");
+            
+            if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
+            {
+                Nav.NavigateTo(response.AuthUrl, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Failed to get authorization URL", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void DisconnectLinkedIn()
+    {
+        LinkedInState.AccessToken = null;
+        _profile = null;
+        Snackbar.Add("Disconnected from LinkedIn", Severity.Success);
+    }
+}
