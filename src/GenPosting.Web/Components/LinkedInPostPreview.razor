@@ -69,10 +69,33 @@
             }
         </div>
 
-        <!-- Optional Image Area -->
-        @if (!string.IsNullOrEmpty(ImageUrl))
+        <!-- Optional Media Area -->
+        @if (Images != null && Images.Any())
         {
-            <MudImage Src="@ImageUrl" Fluid="true" Class="w-100" Style="display: block;" />
+            @if (Images.Count == 1)
+            {
+                <MudImage Src="@Images[0]" Fluid="true" Class="w-100" Style="display: block;" />
+            }
+            else
+            {
+                <MudCarousel Class="mud-width-full" Style="height:300px;" ShowArrows="true" ShowBullets="true" AutoCycle="false" TData="object">
+                    @foreach (var img in Images)
+                    {
+                        <MudCarouselItem Transition="Transition.Slide">
+                            <div class="d-flex justify-center align-center" style="height:100%; bg-color:#000;">
+                                <MudImage Src="@img" Fluid="true" Style="max-height:100%; max-width:100%;" />
+                            </div>
+                        </MudCarouselItem>
+                    }
+                </MudCarousel>
+            }
+        }
+        else if (!string.IsNullOrEmpty(VideoUrl))
+        {
+             <video controls style="width: 100%; max-height: 400px; background-color: black;">
+                <source src="@VideoUrl" type="video/mp4">
+                Your browser does not support the video tag.
+             </video>
         }
         else
         {
@@ -94,7 +117,9 @@
     [Parameter] public string AuthorName { get; set; } = "Your Name";
     [Parameter] public string? AuthorAvatarUrl { get; set; }
     [Parameter] public string Content { get; set; } = "";
-    [Parameter] public string? ImageUrl { get; set; }
+    
+    [Parameter] public List<string>? Images { get; set; }
+    [Parameter] public string? VideoUrl { get; set; }
 
     private bool IsMobile { get; set; } = false;
 }

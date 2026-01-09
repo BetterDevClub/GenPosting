@@ -10,7 +10,8 @@ public interface ILinkedInService
     Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
     Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
     Task<LinkedInProfileDto?> GetProfileAsync(string accessToken);
-    Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content);
+    Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo);
+    Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE");
 }
 
 public class LinkedInService : ILinkedInService
@@ -126,7 +127,74 @@ public class LinkedInService : ILinkedInService
         }
     }
 
-    public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content)
+    public async Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        _httpClient.DefaultRequestHeaders.Remove("X-Restli-Protocol-Version");
+        _httpClient.DefaultRequestHeaders.Remove("LinkedIn-Version");
+        _httpClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
+        _httpClient.DefaultRequestHeaders.Add("LinkedIn-Version", "202306");
+
+        // 1. Get Author URN
+        string authorUrn;
+        try 
+        {
+            var userInfoResponse = await _httpClient.GetFromJsonAsync<LinkedInUserInfoResponse>($"{_settings.ApiUrl}/userinfo");
+            if (userInfoResponse == null) return null;
+            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
+        }
+        catch { return null; }
+
+        // 2. Register Upload
+        var recipe = isVideo ? "urn:li:digitalmediaRecipe:feedshare-video" : "urn:li:digitalmediaRecipe:feedshare-image";
+        
+        var registerPayload = new
+        {
+            registerUploadRequest = new
+            {
+                recipes = new[] { recipe },
+                owner = authorUrn,
+                serviceRelationships = new[]
+                {
+                    new { relationshipType = "OWNER", identifier = "urn:li:userGeneratedContent" }
+                }
+            }
+        };
+
+        var registerResp = await _httpClient.PostAsJsonAsync($"{_settings.ApiUrl}/assets?action=registerUpload", registerPayload);
+        if (!registerResp.IsSuccessStatusCode) 
+        {
+             var err = await registerResp.Content.ReadAsStringAsync();
+             Console.WriteLine($"[LinkedInService] Register Upload Failed: {err}");
+             return null;
+        }
+
+        var registerResult = await registerResp.Content.ReadFromJsonAsync<RegisterUploadResponse>();
+        if (registerResult?.value == null) return null;
+
+        var uploadUrl = registerResult.value.uploadMechanism.UploadHttpRequest.uploadUrl;
+        var assetUrn = registerResult.value.asset; 
+
+        // 3. Upload File
+        using var uploadClient = new HttpClient();
+        // Upload binary directly to the provided URL
+        var fileContent = new StreamContent(fileStream);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        
+        // LinkedIn requires us to set Authorization header to empty or token is not needed for the upload URL as it is signed
+        // However, we must NOT send the Bearer token to the upload URL usually.
+        
+        var uploadResp = await uploadClient.PutAsync(uploadUrl, fileContent);
+        if (!uploadResp.IsSuccessStatusCode)
+        {
+             Console.WriteLine($"[LinkedInService] Media Upload Failed: {uploadResp.StatusCode}");
+             return null;
+        }
+
+        return new LinkedInUploadResponse(assetUrn);
+    }
+
+    public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE")
     {
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         _httpClient.DefaultRequestHeaders.Remove("X-Restli-Protocol-Version"); // Clear potential duplicates if reused
@@ -153,21 +221,26 @@ public class LinkedInService : ILinkedInService
 
         // 2. Create Post Payload (UGC Post)
         // keys containing dots must be handled explicitly, so we use Dictionary for the nested objects
+        
+        var specificContent = new Dictionary<string, object>
+        {
+            { "shareCommentary", new { text = content } },
+            { "shareMediaCategory", mediaType }
+        };
+
+        if (mediaUrns != null && mediaUrns.Any() && mediaType != "NONE")
+        {
+            var mediaList = mediaUrns.Select(urn => newDictionaryEntry(urn)).ToList();
+            specificContent.Add("media", mediaList);
+        }
+
         var postPayload = new Dictionary<string, object>
         {
             { "author", authorUrn },
             { "lifecycleState", "PUBLISHED" },
             { "specificContent", new Dictionary<string, object>
                 {
-                    { "com.linkedin.ugc.ShareContent", new
-                        {
-                            shareCommentary = new
-                            {
-                                text = content
-                            },
-                            shareMediaCategory = "NONE"
-                        }
-                    }
+                    { "com.linkedin.ugc.ShareContent", specificContent }
                 }
             },
             { "visibility", new Dictionary<string, object>
@@ -188,10 +261,7 @@ public class LinkedInService : ILinkedInService
         
         // --- LOGGING ---
         Console.WriteLine($"[LinkedInService] Sending POST request to {_settings.ApiUrl}/ugcPosts");
-        Console.WriteLine($"[LinkedInService] Author URN: {authorUrn}");
-        
-        if (requestMessage.Content.Headers.ContentLength.HasValue)
-            Console.WriteLine($"[LinkedInService] Content-Length: {requestMessage.Content.Headers.ContentLength}");
+        Console.WriteLine($"[LinkedInService] Payload: {jsonPayload}");
         
         // ----------------
 
@@ -201,7 +271,6 @@ public class LinkedInService : ILinkedInService
         {
              var errorBody = await response.Content.ReadAsStringAsync();
              Console.WriteLine($"[LinkedInService] ERROR: Status {response.StatusCode}");
-             Console.WriteLine($"[LinkedInService] Response Headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
              Console.WriteLine($"[LinkedInService] Response Body: {errorBody}");
              return (false, $"LinkedIn Error ({response.StatusCode}): {errorBody}", null);
         }
@@ -210,6 +279,17 @@ public class LinkedInService : ILinkedInService
         return result != null 
             ? (true, null, new LinkedInPostCreatedResponse(result.id)) 
             : (false, "Empty response from LinkedIn", null);
+    }
+
+    private object newDictionaryEntry(string urn) 
+    {
+        return new 
+        {
+            status = "READY",
+            description = new { text = "Media Content" },
+            media = urn,
+            title = new { text = "Media Content" }
+        };
     }
 
     // Internal classes for JSON deserialization
@@ -222,4 +302,16 @@ public class LinkedInService : ILinkedInService
     private record LinkedInShareContent(LinkedInShareCommentary shareCommentary);
     private record LinkedInShareCommentary(string text);
     private record LinkedInCreationInfo(long time);
+
+    private record RegisterUploadResponse(RegisterUploadValue value);
+    private record RegisterUploadValue(
+        [property: System.Text.Json.Serialization.JsonPropertyName("mediaArtifact")] string mediaArtifact, 
+        [property: System.Text.Json.Serialization.JsonPropertyName("uploadMechanism")] RegisterUploadMechanism uploadMechanism, 
+        [property: System.Text.Json.Serialization.JsonPropertyName("asset")] string asset
+    );
+    private record RegisterUploadMechanism(
+        [property: System.Text.Json.Serialization.JsonPropertyName("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")] 
+        RegisterUploadMediaRequest UploadHttpRequest
+    );
+    private record RegisterUploadMediaRequest(string uploadUrl);
 }

@@ -18,7 +18,9 @@ public record LinkedInPostMetricsDto(
     int Shares
 );
 
-public record CreateLinkedInPostRequest(string Content);
+public record CreateLinkedInPostRequest(string Content, List<string>? MediaUrns = null, string MediaType = "NONE");
 public record LinkedInPostCreatedResponse(string Id);
+
+public record LinkedInUploadResponse(string AssetUrn);
 
 public record LinkedInProfileDto(string Name, string? PictureUrl);

@@ -25,6 +25,31 @@ public class LinkedInModule : ICarterModule
             return Results.Ok(token);
         });
 
+        group.MapPost("/upload", async (HttpRequest request, [FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, ILinkedInService service) =>
+        {
+            if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
+            
+            if (!request.HasFormContentType)
+                return Results.BadRequest("Expected multipart/form-data");
+
+            var form = await request.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            
+            if (file == null || file.Length == 0)
+                return Results.BadRequest("No file uploaded");
+            
+            // Basic detection. LinkedIn supports images/video.
+            // mime types: image/jpeg, image/png, image/gif, video/mp4, etc.
+            var isVideo = file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+            
+            using var stream = file.OpenReadStream();
+            var result = await service.UploadMediaAsync(accessToken, stream, file.ContentType, isVideo);
+            
+            if (result == null) return Results.BadRequest("Failed to upload media to LinkedIn");
+            
+            return Results.Ok(result);
+        }).DisableAntiforgery();
+
         group.MapGet("/profile", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, ILinkedInService service) =>
         {
             if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
@@ -43,9 +68,8 @@ public class LinkedInModule : ICarterModule
         group.MapPost("/post", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, [FromBody] CreateLinkedInPostRequest request, ILinkedInService service) =>
         {
             if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
-            if (string.IsNullOrWhiteSpace(request.Content)) return Results.BadRequest("Content cannot be empty");
-
-            var (success, error, data) = await service.CreatePostAsync(accessToken, request.Content);
+            
+            var (success, error, data) = await service.CreatePostAsync(accessToken, request.Content, request.MediaUrns, request.MediaType);
             if (!success) return Results.BadRequest($"Failed to create post on LinkedIn. Details: {error}");
 
             return Results.Ok(data);

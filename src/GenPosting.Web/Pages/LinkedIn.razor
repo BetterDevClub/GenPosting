@@ -38,11 +38,33 @@ else
                 <MudGrid>
                     <MudItem xs="12" md="6">
                          <MudTextField @bind-Value="_newPostContent" Label="What do you want to talk about?" Variant="Variant.Outlined" Lines="8" Class="mb-4" HelperText="Write your post content here." Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Edit" />
-                         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || string.IsNullOrWhiteSpace(_newPostContent))" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Send">
+                         
+                         <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" MaximumFileCount="9" Accept=".jpg, .jpeg, .png, .gif, .mp4">
+                            <ActivatorContent>
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachFile">
+                                    Attach Media (Images or 1 Video)
+                                </MudButton>
+                            </ActivatorContent>
+                         </MudFileUpload>
+
+                         @if (_files != null && _files.Any())
+                         {
+                             <MudList T="IBrowserFile" Dense="true">
+                                 @foreach (var file in _files)
+                                 {
+                                     <MudListItem Icon="@Icons.Material.Filled.FilePresent">
+                                         @file.Name (@(file.Size / 1024) KB)
+                                     </MudListItem>
+                                 }
+                             </MudList>
+                             <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearFiles" Class="mt-2">Clear Media</MudButton>
+                         }
+
+                         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@(_posting || (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any())))" FullWidth="true" Class="mt-4 py-2" StartIcon="@Icons.Material.Filled.Send">
                             @if (_posting)
                             {
                                 <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                                <MudText Class="ms-2">Posting...</MudText>
+                                <MudText Class="ms-2">Posting... @(_uploadProgress > 0 ? $"{_uploadProgress}%" : "")</MudText>
                             }
                             else
                             {
@@ -52,7 +74,7 @@ else
                     </MudItem>
                     
                     <MudItem xs="12" md="6">
-                         <GenPosting.Web.Components.LinkedInPostPreview Content="@_newPostContent" AuthorName="@(_profile?.Name ?? "Your Name")" AuthorAvatarUrl="@(_profile?.PictureUrl)" /> 
+                         <GenPosting.Web.Components.LinkedInPostPreview Content="@_newPostContent" AuthorName="@(_profile?.Name ?? "Your Name")" AuthorAvatarUrl="@(_profile?.PictureUrl)" Images="@_previewImages" VideoUrl="@_previewVideoUrl" /> 
                     </MudItem>
                 </MudGrid>
             </MudPaper>
@@ -102,6 +124,11 @@ else
     private bool _loading = false;
     private bool _posting = false;
     private string _newPostContent = string.Empty;
+    
+    private IReadOnlyList<IBrowserFile>? _files;
+    private List<string> _previewImages = new();
+    private string? _previewVideoUrl;
+    private int _uploadProgress = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,6 +137,63 @@ else
             await LoadProfile();
             await LoadPosts();
         }
+    }
+    
+    private async Task OnFilesChanged(IReadOnlyList<IBrowserFile> files)
+    {
+        _files = files;
+        _previewImages.Clear();
+        _previewVideoUrl = null;
+
+        if (files == null || !files.Any()) return;
+
+        var first = files.First();
+        var isVideo = first.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+        
+        if (isVideo)
+        {
+            if (files.Count > 1) 
+            {
+                Snackbar.Add("You can only upload one video at a time.", Severity.Warning);
+                _files = null;
+                return;
+            }
+            _previewVideoUrl = "VIDEO_SELECTED"; // Placeholder as we can't easily preview video file stream
+        }
+        else
+        {
+            foreach(var f in files)
+            {
+                if (f.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+                {
+                     Snackbar.Add("Cannot mix images and video.", Severity.Warning);
+                     _files = null;
+                     _previewImages.Clear();
+                     return;
+                }
+                
+                try 
+                {
+                    // resizing for preview to save memory and speed up
+                    var resized = await f.RequestImageFileAsync(f.ContentType, 600, 600);
+                    var buffer = new byte[resized.Size];
+                    await resized.OpenReadStream().ReadAsync(buffer);
+                    var base64 = Convert.ToBase64String(buffer);
+                    _previewImages.Add($"data:{f.ContentType};base64,{base64}");
+                } 
+                catch (Exception ex) 
+                {
+                    Console.WriteLine($"Preview error: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    private void ClearFiles()
+    {
+        _files = null;
+        _previewImages.Clear();
+        _previewVideoUrl = null;
     }
 
     private async Task LoadProfile()
@@ -132,21 +216,65 @@ else
 
     private async Task CreatePost()
     {
-        if (string.IsNullOrWhiteSpace(_newPostContent)) return;
+        if (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any())) return;
 
         _posting = true;
+        _uploadProgress = 0;
         try
         {
+            var mediaUrns = new List<string>();
+            var mediaType = "NONE";
+
+            // 1. Upload Media step
+            if (_files != null && _files.Any())
+            {
+                var isVideo = _files.First().ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+                mediaType = isVideo ? "VIDEO" : "IMAGE";
+                int count = 0;
+                
+                foreach (var file in _files)
+                {
+                     count++;
+                     _uploadProgress = (int)((count / (double)_files.Count) * 50); // First 50%
+                     StateHasChanged(); // Force UI update for progress
+
+                     using var content = new MultipartFormDataContent();
+                     using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024); // 50MB limit
+                     using var fileContent = new StreamContent(stream);
+                     fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+                     content.Add(fileContent, "file", file.Name);
+                     
+                     var uploadReq = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/upload");
+                     uploadReq.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+                     uploadReq.Content = content;
+                     
+                     var uploadRes = await Http.SendAsync(uploadReq);
+                     if (!uploadRes.IsSuccessStatusCode)
+                     {
+                         var err = await uploadRes.Content.ReadAsStringAsync();
+                         throw new Exception($"Failed to upload media: {err}");
+                     }
+                     
+                     var uploadResult = await uploadRes.Content.ReadFromJsonAsync<LinkedInUploadResponse>();
+                     if (uploadResult != null) mediaUrns.Add(uploadResult.AssetUrn);
+                }
+            }
+            
+            _uploadProgress = 75;
+            StateHasChanged();
+
+            // 2. Post Creation
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
             request.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent));
+            request.Content = JsonContent.Create(new CreateLinkedInPostRequest(_newPostContent, mediaUrns, mediaType));
 
             var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add("Post created successfully!", Severity.Success);
                 _newPostContent = string.Empty;
-                await LoadPosts(); // Refresh list
+                ClearFiles();
+                await LoadPosts(); 
             }
             else
             {
@@ -161,6 +289,7 @@ else
         finally
         {
             _posting = false;
+            _uploadProgress = 0;
         }
     }
 
