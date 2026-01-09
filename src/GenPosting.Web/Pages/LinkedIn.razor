@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject ILinkedInStateService LinkedInState
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>LinkedIn Dashboard</PageTitle>
 
@@ -50,66 +51,66 @@ else
                 
                 <MudGrid>
                     <MudItem xs="12" md="6" Class="position-relative">
-                         <MudTextField @bind-Value="_newPostContent" 
-                                       Label="What do you want to talk about?" 
-                                       Variant="Variant.Outlined" 
-                                       Lines="8" 
-                                       Class="mb-4" 
-                                       Adornment="Adornment.End" 
-                                       AdornmentIcon="@Icons.Material.Filled.Edit"
-                                       Immediate="true" />
+                            <MudTextField @bind-Value="_newPostContent" 
+                                        Label="What do you want to talk about?" 
+                                        Variant="Variant.Outlined" 
+                                        Lines="8" 
+                                        Class="mb-4" 
+                                        Adornment="Adornment.End" 
+                                        AdornmentIcon="@Icons.Material.Filled.Edit"
+                                        Immediate="true" />
 
 
-                         <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" MaximumFileCount="9" Accept=".jpg, .jpeg, .png, .gif, .mp4">
+                            <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" MaximumFileCount="9" Accept=".jpg, .jpeg, .png, .gif, .mp4">
                             <ActivatorContent>
                                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachFile">
                                     Attach Media (Images or 1 Video)
                                 </MudButton>
                             </ActivatorContent>
-                         </MudFileUpload>
+                            </MudFileUpload>
 
-                         @if (_files != null && _files.Any())
-                         {
-                             <MudList T="IBrowserFile" Dense="true">
-                                 @foreach (var file in _files)
-                                 {
-                                     <MudListItem Icon="@Icons.Material.Filled.FilePresent">
-                                         @file.Name (@(file.Size / 1024) KB)
-                                     </MudListItem>
-                                 }
-                             </MudList>
-                             <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearFiles" Class="mt-2">Clear Media</MudButton>
-                         }
+                            @if (_files != null && _files.Any())
+                            {
+                                <MudList T="IBrowserFile" Dense="true">
+                                    @foreach (var file in _files)
+                                    {
+                                        <MudListItem Icon="@Icons.Material.Filled.FilePresent">
+                                            @file.Name (@(file.Size / 1024) KB)
+                                        </MudListItem>
+                                    }
+                                </MudList>
+                                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearFiles" Class="mt-2">Clear Media</MudButton>
+                            }
 
-                         <MudDivider Class="my-4"/>
-                         <MudText Typo="Typo.subtitle2" Class="mb-2">Follow-up Comments</MudText>
-                         @for (int i = 0; i < _comments.Count; i++)
-                         {
-                             var index = i; 
-                             <div class="d-flex gap-2 mb-2">
+                            <MudDivider Class="my-4"/>
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Follow-up Comments</MudText>
+                            @for (int i = 0; i < _comments.Count; i++)
+                            {
+                                var index = i; 
+                                <div class="d-flex gap-2 mb-2">
                                 <MudTextField Value="@_comments[index]" ValueChanged="@((string s) => _comments[index] = s)" Label="@($"Comment #{index+1}")" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true"/>
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => RemoveComment(index))" />
-                             </div>
-                         }
-                         <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField">Add Follow-up Comment</MudButton>
+                                </div>
+                            }
+                            <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField">Add Follow-up Comment</MudButton>
 
-                         @* Scheduling UI *@
-                         @if (_showScheduleOptions)
-                         {
-                             <MudPaper Class="pa-4 my-4" Elevation="0" Outlined="true">
-                                 <MudText Typo="Typo.subtitle2" Class="mb-2">Schedule Post</MudText>
-                                 <div class="d-flex gap-4">
-                                     <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" />
-                                     <MudTimePicker Label="Time" @bind-Time="_scheduledTime" />
-                                 </div>
-                                 <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="@(() => _showScheduleOptions = false)" Class="mt-2">Cancel Schedule</MudButton>
-                             </MudPaper>
-                         }
+                            @* Scheduling UI *@
+                            @if (_showScheduleOptions)
+                            {
+                                <MudPaper Class="pa-4 my-4" Elevation="0" Outlined="true">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">Schedule Post</MudText>
+                                    <div class="d-flex gap-4">
+                                        <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" />
+                                        <MudTimePicker Label="Time" @bind-Time="_scheduledTime" />
+                                    </div>
+                                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="@(() => _showScheduleOptions = false)" Class="mt-2">Cancel Schedule</MudButton>
+                                </MudPaper>
+                            }
 
-                         <div class="d-flex gap-2 mt-4">
+                            <div class="d-flex gap-2 mt-4">
                             @if (!_showScheduleOptions)
                             {
-                                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@IsPostDisabled" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Send">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePost" Disabled="@IsPostDisabled" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Send">
                                     @if (_posting)
                                     {
                                         <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
@@ -127,22 +128,22 @@ else
                             else
                             {
                                 <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="SchedulePost" Disabled="@IsPostDisabled" FullWidth="true" Class="py-2" StartIcon="@Icons.Material.Filled.Check">
-                                     @if (_posting)
-                                     {
-                                         <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                                         <MudText Class="ms-2">Scheduling...</MudText>
-                                     }
-                                     else
-                                     {
-                                         <MudText>Confirm Schedule</MudText>
-                                     }
+                                        @if (_posting)
+                                        {
+                                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                            <MudText Class="ms-2">Scheduling...</MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudText>Confirm Schedule</MudText>
+                                        }
                                 </MudButton>
                             }
-                         </div>
+                            </div>
                     </MudItem>
                     
                     <MudItem xs="12" md="6">
-                         <GenPosting.Web.Components.LinkedInPostPreview Content="@_newPostContent" AuthorName="@(_profile?.Name ?? "Your Name")" AuthorAvatarUrl="@(_profile?.PictureUrl)" Images="@_previewImages" VideoUrl="@_previewVideoUrl" /> 
+                            <GenPosting.Web.Components.LinkedInPostPreview Content="@_newPostContent" AuthorName="@(_profile?.Name ?? "Your Name")" AuthorAvatarUrl="@(_profile?.PictureUrl)" Images="@_previewImages" VideoUrl="@_previewVideoUrl" /> 
                     </MudItem>
                 </MudGrid>
             </MudPaper>
@@ -168,6 +169,7 @@ else
     private TimeSpan? _scheduledTime = DateTime.Now.TimeOfDay.Add(TimeSpan.FromMinutes(30)); 
 
     private bool IsPostDisabled => _posting || (string.IsNullOrWhiteSpace(_newPostContent) && (_files == null || !_files.Any()));
+    
 
     private void AddCommentField() => _comments.Add(string.Empty);
     private void RemoveComment(int index)
@@ -182,6 +184,7 @@ else
             await LoadProfile();
         }
     }
+
     private async Task OnFilesChanged(IReadOnlyList<IBrowserFile> files)
     {
         _files = files;

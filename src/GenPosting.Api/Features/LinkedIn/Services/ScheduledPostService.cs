@@ -6,6 +6,10 @@ namespace GenPosting.Api.Features.LinkedIn.Services;
 public interface IScheduledPostService
 {
     Task SchedulePostAsync(ScheduledPost post);
+    Task<List<ScheduledPost>> GetAllScheduledPostsAsync();
+    Task<ScheduledPost?> GetScheduledPostByIdAsync(Guid id);
+    Task UpdateScheduledPostAsync(ScheduledPost post);
+    Task DeleteScheduledPostAsync(Guid id);
     Task<List<ScheduledPost>> GetDuePostsAsync();
     Task MarkAsPublishedAsync(Guid id);
     Task MarkAsFailedAsync(Guid id, string error);
@@ -19,6 +23,31 @@ public class InMemoryScheduledPostService : IScheduledPostService
     public Task SchedulePostAsync(ScheduledPost post)
     {
         _posts.TryAdd(post.Id, post);
+        return Task.CompletedTask;
+    }
+
+    public Task<List<ScheduledPost>> GetAllScheduledPostsAsync()
+    {
+        var all = _posts.Values.OrderBy(p => p.ScheduledTime).ToList();
+        return Task.FromResult(all);
+    }
+
+    public Task<ScheduledPost?> GetScheduledPostByIdAsync(Guid id)
+    {
+        _posts.TryGetValue(id, out var post);
+        return Task.FromResult(post);
+    }
+
+    public Task UpdateScheduledPostAsync(ScheduledPost post)
+    {
+        // For in-memory, we just overwrite
+        _posts.AddOrUpdate(post.Id, post, (k, v) => post);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteScheduledPostAsync(Guid id)
+    {
+        _posts.TryRemove(id, out _);
         return Task.CompletedTask;
     }
 

@@ -1,0 +1,109 @@
+@using MudBlazor
+@using GenPosting.Shared.DTOs
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_content" Label="Edit Content" Variant="Variant.Outlined" Lines="5"  />
+            </MudItem>
+            
+            <MudItem xs="12">
+                 <MudText Typo="Typo.subtitle2">Media</MudText>
+                 @if (Post.MediaUrns != null && Post.MediaUrns.Any())
+                 {
+                     <MudChip T="string" Color="Color.Info" Icon="@Icons.Material.Filled.AttachFile">Media Attached (@Post.MediaUrns.Count)</MudChip>
+                 }
+                 else
+                 {
+                     <MudText Typo="Typo.caption">No media attached.</MudText>
+                 }
+                 @* Editing media is complex (upload new ones), disabling for now *@
+            </MudItem>
+            
+             <MudItem xs="12">
+                 <MudText Typo="Typo.subtitle2" Class="mb-1">Comments</MudText>
+                 @if (_comments != null)
+                 {
+                     @for(int i=0; i<_comments.Count; i++)
+                     {
+                         var index=i;
+                         <div class="d-flex gap-2 mb-2">
+                            <MudTextField @bind-Value="_comments[index]" Label="@($"Comment #{index+1}")" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true"/>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => _comments.RemoveAt(index))" />
+                         </div>
+                     }
+                 }
+                 <MudButton StartIcon="@Icons.Material.Filled.AddComment" OnClick="@(() => { _comments.Add(""); })">Add Comment</MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Label="Scheduled Date" @bind-Date="EditableDate" MinDate="DateTime.Today" />
+            </MudItem>
+             <MudItem xs="12" sm="6">
+                <MudTimePicker Label="Scheduled Time" @bind-Time="EditableTime" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" OnClick="DeletePost">Delete Post</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Save Changes</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    
+    [Parameter] public ScheduledPostDto Post { get; set; } = default!;
+    
+    // Local editable copies
+    private string _content = string.Empty;
+    private List<string> _comments = new();
+    private DateTime? EditableDate;
+    private TimeSpan? EditableTime;
+
+    protected override void OnInitialized()
+    {
+        // Copy values to mutable local fields
+        _content = Post.Content;
+        _comments = Post.Comments?.ToList() ?? new List<string>();
+
+        // Convert Offset to Local for display/edit
+        var local = Post.ScheduledTime.ToLocalTime();
+        EditableDate = local.Date;
+        EditableTime = local.TimeOfDay;
+    }
+
+    void Cancel() => MudDialog.Cancel();
+    
+    void DeletePost() => MudDialog.Close(DialogResult.Ok<string>("DELETE"));
+
+    void Save()
+    {
+        if (EditableDate == null || EditableTime == null)
+        {
+             Snackbar.Add("Invalid date/time", Severity.Error);
+             return;
+        }
+
+        var newLocal = EditableDate.Value.Add(EditableTime.Value);
+        var offset = DateTimeOffset.Now.Offset;
+        var newScheduled = new DateTimeOffset(newLocal, offset);
+
+        if (newScheduled <= DateTimeOffset.Now)
+        {
+             Snackbar.Add("Time must be in the future", Severity.Warning);
+             return;
+        }
+        
+        // Return updated object
+        var updated = Post with { 
+            Content = _content,
+            Comments = _comments,
+            ScheduledTime = newScheduled 
+        };
+        MudDialog.Close(DialogResult.Ok(updated));
+    }
+}

@@ -1,0 +1,216 @@
+@page "/calendar"
+@using GenPosting.Shared.DTOs
+@using System.Globalization
+@inject HttpClient Http
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <!-- Header / Toolbar -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h5" Class="mr-4">@GetDateRangeLabel()</MudText>
+        
+        <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="Previous" />
+            <MudButton OnClick="GoToday">Today</MudButton>
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="Next" />
+        </MudButtonGroup>
+        
+        <MudSpacer />
+        
+        <MudSelect T="CalendarViewType" @bind-Value="_currentView" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="width: 150px">
+            <MudSelectItem Value="CalendarViewType.Week">Weekly view</MudSelectItem>
+            <MudSelectItem Value="CalendarViewType.Month">Monthly view</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+
+    <!-- Calendar Content -->
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        @if (_currentView == CalendarViewType.Week)
+        {
+            <MudGrid Spacing="0" Style="height: 80vh; border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; overflow: hidden;">
+                @for (int i = 0; i < 7; i++)
+                {
+                    var day = _currentWeekStart.AddDays(i);
+                    var isToday = day.Date == DateTime.Today;
+                    var dayPosts = GetPostsForDay(day);
+                    
+                    <MudItem xs="12" sm="1" Style="width: 14.28%; border-right: 1px solid var(--mud-palette-lines-default); display: flex; flex-direction: column;">
+                        <!-- Column Header -->
+                        <div class="pa-2 border-b-1 muda-border-lines-default @(isToday ? "mud-theme-primary-light" : "")" >
+                            <MudText Typo="Typo.body2" Align="Align.Center">@day.ToString("dddd")</MudText>
+                            <MudText Typo="Typo.body1" Align="Align.Center" Style="font-weight: bold;">@day.ToString("d MMM")</MudText>
+                        </div>
+                        
+                        <!-- Column Body (Posts) -->
+                        <div class="pa-2 flex-grow-1" style="overflow-y: auto; background-color: var(--mud-palette-background-grey);">
+                            @foreach (var post in dayPosts)
+                            {
+                                <MudPaper Class="pa-2 mb-2 cursor-pointer" Elevation="1" @onclick="@(() => OpenEditDialog(post))">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                         <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Small" Color="Color.Primary" />
+                                         <MudText Typo="Typo.caption">@post.ScheduledTime.ToLocalTime().ToString("t")</MudText>
+                                    </MudStack>
+                                    
+                                    @if (!string.IsNullOrEmpty(post.Content))
+                                    {
+                                        <MudText Typo="Typo.body2" Class="mt-1" Style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                                            @post.Content
+                                        </MudText>
+                                    }
+                                    
+                                    @if (post.MediaUrns != null && post.MediaUrns.Any())
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Small" Class="mt-1"/>
+                                    }
+                                </MudPaper>
+                            }
+                        </div>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else // Monthly View (Basic Implementation)
+        {
+             <MudText>Monthly view is under construction. Please switch to Weekly view.</MudText>
+             <!-- Placeholder for future implementation -->
+        }
+    }
+
+</MudContainer>
+
+@code {
+    private List<ScheduledPostDto> _allScheduledPosts = new();
+    private bool _loading = true;
+    
+    private DateTime _selectedDate = DateTime.Today;
+    private DateTime _currentWeekStart;
+    private CalendarViewType _currentView = CalendarViewType.Week;
+
+    public enum CalendarViewType { Week, Month }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CalculateWeekStart();
+        await LoadScheduledPosts();
+    }
+
+    private void CalculateWeekStart()
+    {
+        var diff = _selectedDate.DayOfWeek - DayOfWeek.Monday;
+        if (diff < 0) diff += 7;
+        _currentWeekStart = _selectedDate.AddDays(-1 * diff).Date;
+    }
+
+    private async Task LoadScheduledPosts()
+    {
+        _loading = true;
+        try
+        {
+            _allScheduledPosts = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("api/linkedin/scheduled") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching posts: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private List<ScheduledPostDto> GetPostsForDay(DateTime day)
+    {
+        return _allScheduledPosts
+            .Where(p => p.ScheduledTime.ToLocalTime().Date == day.Date)
+            .OrderBy(p => p.ScheduledTime)
+            .ToList();
+    }
+
+    private string GetDateRangeLabel()
+    {
+        if (_currentView == CalendarViewType.Week)
+        {
+            var end = _currentWeekStart.AddDays(6);
+            if (_currentWeekStart.Month == end.Month)
+                return $"{_currentWeekStart.Day} - {end.Day} {end.ToString("MMM")}";
+            else
+                return $"{_currentWeekStart.ToString("d MMM")} - {end.ToString("d MMM")}";
+        }
+        return _selectedDate.ToString("MMMM yyyy");
+    }
+
+    private void Previous()
+    {
+        if (_currentView == CalendarViewType.Week)
+            _selectedDate = _selectedDate.AddDays(-7);
+        else
+            _selectedDate = _selectedDate.AddMonths(-1);
+            
+        CalculateWeekStart();
+    }
+
+    private void Next()
+    {
+        if (_currentView == CalendarViewType.Week)
+            _selectedDate = _selectedDate.AddDays(7);
+        else
+            _selectedDate = _selectedDate.AddMonths(1);
+
+        CalculateWeekStart();
+    }
+
+    private void GoToday()
+    {
+        _selectedDate = DateTime.Today;
+        CalculateWeekStart();
+    }
+
+    // Logic copied and adapted from LinkedIn.razor for reuse
+    private async Task OpenEditDialog(ScheduledPostDto post)
+    {
+        var parameters = new DialogParameters<GenPosting.Web.Components.EditScheduledPostDialog> { { x => x.Post, post } };
+        var dialog = await DialogService.ShowAsync<GenPosting.Web.Components.EditScheduledPostDialog>("Edit Scheduled Post", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            if (result.Data is string s && s == "DELETE")
+            {
+                 var delRes = await Http.DeleteAsync($"/api/linkedin/scheduled/{post.Id}");
+                 if (delRes.IsSuccessStatusCode) 
+                 {
+                     Snackbar.Add("Post deleted", Severity.Success);
+                     await LoadScheduledPosts();
+                 }
+                 else Snackbar.Add("Failed to delete", Severity.Error);
+            }
+            else if (result.Data is ScheduledPostDto updated)
+            {
+                var request = new UpdateScheduledPostRequest(
+                    updated.Content,
+                    updated.MediaUrns,
+                    updated.MediaType,
+                    updated.Comments,
+                    updated.ScheduledTime
+                );
+
+                var res = await Http.PutAsJsonAsync($"/api/linkedin/scheduled/{updated.Id}", request);
+                if (res.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Post updated", Severity.Success);
+                    await LoadScheduledPosts();
+                }
+                else
+                {
+                    Snackbar.Add("Failed to update post", Severity.Error);
+                }
+            }
+        }
+    }
+}

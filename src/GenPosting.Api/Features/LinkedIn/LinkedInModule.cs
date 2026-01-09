@@ -108,5 +108,41 @@ public class LinkedInModule : ICarterModule
 
             return Results.Ok(data);
         });
+
+        // Scheduled Posts Endpoints
+        group.MapGet("/scheduled", async (IScheduledPostService scheduler) =>
+        {
+            var posts = await scheduler.GetAllScheduledPostsAsync();
+            var dtos = posts.Select(p => new ScheduledPostDto(p.Id, p.Content, p.MediaUrns, p.MediaType, p.Comments, p.ScheduledTime, p.Status ?? "Pending"));
+            return Results.Ok(dtos);
+        });
+        
+        group.MapGet("/scheduled/{id}", async (Guid id, IScheduledPostService scheduler) =>
+        {
+            var post = await scheduler.GetScheduledPostByIdAsync(id);
+            if (post == null) return Results.NotFound();
+            return Results.Ok(new ScheduledPostDto(post.Id, post.Content, post.MediaUrns, post.MediaType, post.Comments, post.ScheduledTime, post.Status ?? "Pending"));
+        });
+
+        group.MapDelete("/scheduled/{id}", async (Guid id, IScheduledPostService scheduler) =>
+        {
+            await scheduler.DeleteScheduledPostAsync(id);
+            return Results.NoContent();
+        });
+
+        group.MapPut("/scheduled/{id}", async (Guid id, [FromBody] UpdateScheduledPostRequest request, IScheduledPostService scheduler) =>
+        {
+            var post = await scheduler.GetScheduledPostByIdAsync(id);
+            if (post == null) return Results.NotFound();
+
+            post.Content = request.Content;
+            post.MediaUrns = request.MediaUrns; // Keep old or update if provided
+            post.MediaType = request.MediaType;
+            post.Comments = request.Comments;
+            post.ScheduledTime = request.ScheduledTime;
+
+            await scheduler.UpdateScheduledPostAsync(post);
+            return Results.Ok();
+        });
     }
 }
