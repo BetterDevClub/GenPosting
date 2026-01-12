@@ -97,13 +97,13 @@ public class InstagramService : IInstagramService
          return await _blobService.UploadFileAsync(fileStream, fileName, contentType);
     }
 
-    public async Task<(bool Success, string Error)> PublishPostWithUrlAsync(string accessToken, string userId, string caption, InstagramPostType type, string mediaUrl)
+    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostWithUrlAsync(string accessToken, string userId, string caption, InstagramPostType type, string mediaUrl)
     {
         // 1. Get Instagram Business Account ID
         var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
         if (string.IsNullOrEmpty(instagramBusinessId))
         {
-            return (false, "No connected Instagram Account found.");
+            return (false, "No connected Instagram Account found.", null);
         }
 
         // 2. Create Media Container
@@ -111,7 +111,7 @@ public class InstagramService : IInstagramService
         string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, mediaUrl, caption, type);
         if (string.IsNullOrEmpty(containerId))
         {
-             return (false, "Failed to create Instagram Media Container (API rejected media/caption).");
+             return (false, "Failed to create Instagram Media Container (API rejected media/caption).", null);
         }
 
         // 3. Publish Container
@@ -119,20 +119,20 @@ public class InstagramService : IInstagramService
         {
             await WaitForContainerReadyAsync(accessToken, containerId);
 
-            var published = await PublishMediaContainerAsync(accessToken, instagramBusinessId, containerId);
-            return published ? (true, string.Empty) : (false, "Failed to publish media container.");
+            var publishedId = await PublishMediaContainerAsync(accessToken, instagramBusinessId, containerId);
+            return !string.IsNullOrEmpty(publishedId) ? (true, string.Empty, publishedId) : (false, "Failed to publish media container.", null);
         }
         catch (Exception ex)
         {
-            return (false, $"Publishing process failed: {ex.Message}");
+            return (false, $"Publishing process failed: {ex.Message}", null);
         }
     }
 
-    public async Task<(bool Success, string Error)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName)
+    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName)
     {
         if (fileStream == null || string.IsNullOrEmpty(fileName))
         {
-            return (false, "No file provided for Instagram upload.");
+            return (false, "No file provided for Instagram upload.", null);
         }
 
         // 1. Upload to Azure Blob Storage
@@ -144,7 +144,7 @@ public class InstagramService : IInstagramService
         }
         catch (Exception ex)
         {
-            return (false, $"Blob Storage Upload Failed: {ex.Message}");
+            return (false, $"Blob Storage Upload Failed: {ex.Message}", null);
         }
 
         return await PublishPostWithUrlAsync(accessToken, userId, request.Caption, request.PostType, publicUrl);
@@ -247,7 +247,7 @@ public class InstagramService : IInstagramService
         throw new Exception("Timed out waiting for IG Container to process");
     }
 
-    private async Task<bool> PublishMediaContainerAsync(string accessToken, string igUserId, string containerId)
+    private async Task<string?> PublishMediaContainerAsync(string accessToken, string igUserId, string containerId)
     {
         var url = $"https://graph.facebook.com/v19.0/{igUserId}/media_publish?creation_id={containerId}&access_token={accessToken}";
         var response = await _httpClient.PostAsync(url, null);
@@ -256,6 +256,23 @@ public class InstagramService : IInstagramService
         {
             var error = await response.Content.ReadAsStringAsync();
             Console.WriteLine($"IG Publish Error: {error}");
+            return null;
+        }
+
+        var data = await response.Content.ReadFromJsonAsync<IgContainerResponse>();
+        return data?.Id;
+    }
+
+    public async Task<bool> AddCommentAsync(string accessToken, string mediaId, string message)
+    {
+        // https://developers.facebook.com/docs/instagram-api/reference/ig-media/comments
+        var url = $"https://graph.facebook.com/v19.0/{mediaId}/comments?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
+        var response = await _httpClient.PostAsync(url, null);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"IG Add Comment Error: {error}");
             return false;
         }
         return true;

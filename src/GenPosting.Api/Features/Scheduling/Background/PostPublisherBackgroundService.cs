@@ -82,6 +82,7 @@ public class PostPublisherBackgroundService : BackgroundService
                         );
                         success = result.Success;
                         error = result.Error;
+                        publishedId = result.PublishedId;
                     }
                 }
                 else
@@ -95,7 +96,7 @@ public class PostPublisherBackgroundService : BackgroundService
                     );
                     success = liSuccess;
                     error = liError;
-                    publishedId = liData?.Id; // Only LinkedIn returns ID immediately in this flow currently
+                    publishedId = liData?.Id; 
                 }
 
                 if (!success)
@@ -105,14 +106,23 @@ public class PostPublisherBackgroundService : BackgroundService
                     continue; 
                 }
 
-                // Handle Comments (Currently LinkedIn only)
-                if (post.Platform == SocialPlatform.LinkedIn && !string.IsNullOrEmpty(publishedId) && post.Comments != null && post.Comments.Any())
+                // Handle Comments (Unified for both platforms)
+                if (!string.IsNullOrEmpty(publishedId) && post.Comments != null && post.Comments.Any())
                 {
                     foreach (var comment in post.Comments)
                     {
                         if (!string.IsNullOrWhiteSpace(comment))
                         {
-                            await linkedInService.AddCommentAsync(post.AccessToken, publishedId, comment);
+                            if (post.Platform == SocialPlatform.Instagram)
+                            {
+                                await instagramService.AddCommentAsync(post.AccessToken, publishedId, comment);
+                            }
+                            else if (post.Platform == SocialPlatform.LinkedIn)
+                            {
+                                await linkedInService.AddCommentAsync(post.AccessToken, publishedId, comment);
+                            }
+                            
+                            // Small delay to ensure order and avoid rate limits
                             await Task.Delay(500, stoppingToken);
                         }
                     }

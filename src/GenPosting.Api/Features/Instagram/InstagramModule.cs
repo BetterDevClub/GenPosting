@@ -46,6 +46,7 @@ public class InstagramModule : ICarterModule
             var caption = form["caption"];
             var postTypeStr = form["postType"];
             var scheduledForStr = form["scheduledFor"];
+            var comments = form["comments"].ToString(); // Expecting comma/newline separated or simply a list if needed, usually passed as string
             var file = form.Files["file"];
 
             if (!Enum.TryParse<InstagramPostType>(postTypeStr, out var postType))
@@ -58,6 +59,19 @@ public class InstagramModule : ICarterModule
             if (!string.IsNullOrEmpty(scheduledForStr) && DateTimeOffset.TryParse(scheduledForStr, out var parsedDate))
             {
                 scheduledFor = parsedDate;
+            }
+            
+            // Parse comments (simple splitting by newline for now if multiple, typically one comment block might be sent)
+            // Or better, let the UI send raw text, and we split by newline if we want multiple comments? 
+            // For now let's assume raw text is one comment, or if we want multiple, we need a better convention.
+            // Let's assume the UI sends a JSON string or we split by a delimiter.
+            // Let's go with: splitting by newline for multiple comments
+            List<string>? commentsList = null;
+            if (!string.IsNullOrEmpty(comments))
+            {
+                commentsList = comments.Contains("|||") // Using a safer delimiter if possible
+                    ? comments.Split("|||", StringSplitOptions.RemoveEmptyEntries).ToList()
+                    : new List<string> { comments };
             }
 
             // Scheduling Logic
@@ -89,7 +103,8 @@ public class InstagramModule : ICarterModule
                      MediaUrns = new List<string> { mediaUrl }, // Storing URL in MediaUrns mechanism
                      ScheduledTime = scheduledFor.Value,
                      ThumbnailUrl = mediaUrl, // Using same URL for thumbnail for now
-                     Status = "Pending"
+                     Status = "Pending",
+                     Comments = commentsList // Add comments
                  };
 
                  await scheduledService.SchedulePostAsync(scheduledPost);
@@ -99,7 +114,24 @@ public class InstagramModule : ICarterModule
             // Immediate Publishing Logic
             var dto = new CreateInstagramPostRequest(caption, postType, new List<string>());
 
-            var (success, error) = await service.PublishPostAsync(token, userId, dto, stream, file?.FileName);
+            // We need the published ID to add comments, so we use PublishPostWithUrlAsync directly or update PublishPostAsync to return it.
+            // But PublishPostAsync handles the blob upload.
+            // Let's modify IInstagramService.PublishPostAsync to return the PublishedId as well.
+            
+            var (success, error, publishedId) = await service.PublishPostAsync(token, userId, dto, stream, file?.FileName);
+            
+            if (success && !string.IsNullOrEmpty(publishedId) && commentsList != null && commentsList.Any())
+            {
+                foreach (var comment in commentsList)
+                {
+                    if (!string.IsNullOrWhiteSpace(comment))
+                    {
+                        await service.AddCommentAsync(token, publishedId, comment);
+                        // No delay needed for single immediate comment usually, or minimal
+                    }
+                }
+            }
+
             return success ? Results.Ok() : Results.BadRequest(error);
         });
     }

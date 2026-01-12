@@ -90,11 +90,29 @@ else
                         
                         @if (_isScheduled)
                         {
-                            <div class="d-flex gap-4 mt-2">
+                            <div class="d-flex gap-4 mt-2 mb-4">
                                 <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" Variant="Variant.Outlined" />
                                 <MudTimePicker Label="Time" @bind-Time="_scheduledTime" Variant="Variant.Outlined" />
                             </div>
                         }
+                        
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Follow-up Comments</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2 d-block">These comments will be posted immediately after the post is published in the order shown.</MudText>
+                        
+                        @for (int i = 0; i < _comments.Count; i++)
+                        {
+                            var index = i; 
+                            <div class="d-flex gap-2 mb-2">
+                                <MudTextField Value="@_comments[index]" ValueChanged="@((string s) => _comments[index] = s)" 
+                                            Label="@($"Comment #{index+1}")" 
+                                            Variant="Variant.Outlined" 
+                                            Margin="Margin.Dense" 
+                                            FullWidth="true" 
+                                            Lines="2"/>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => RemoveComment(index))" />
+                            </div>
+                        }
+                        <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField" Class="mb-4">Add Follow-up Comment</MudButton>
 
                         <div class="d-flex justify-end gap-2 mt-6">
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PublishPost" Disabled="@(_file == null || _isPosting)">
@@ -168,6 +186,7 @@ else
     private InstagramUserDto? _profile;
     private InstagramPostType _postType = InstagramPostType.Post;
     private string _caption = "";
+    private List<string> _comments = new List<string>(); // Changed to List
     private IBrowserFile? _file;
     private bool _isPosting = false;
     
@@ -213,6 +232,19 @@ else
         _file = null;
     }
 
+    private void AddCommentField()
+    {
+        _comments.Add("");
+    }
+
+    private void RemoveComment(int index)
+    {
+        if (index >= 0 && index < _comments.Count)
+        {
+            _comments.RemoveAt(index);
+        }
+    }
+
     private async Task PublishPost()
     {
         if (_file == null) return;
@@ -231,6 +263,17 @@ else
             content.Add(fileContent, "file", _file.Name);
             content.Add(new StringContent(_caption), "caption");
             content.Add(new StringContent(_postType.ToString()), "postType");
+
+            if (_comments.Any())
+            {
+                // Join comments with a delimiter that is unlikely to be in user text. 
+                // Using ||| as agreed with backend convention.
+                var joinedComments = string.Join("|||", _comments.Where(c => !string.IsNullOrWhiteSpace(c)));
+                if (!string.IsNullOrEmpty(joinedComments))
+                {
+                    content.Add(new StringContent(joinedComments), "comments");
+                }
+            }
 
             if (_isScheduled && _scheduledDate.HasValue && _scheduledTime.HasValue)
             {
@@ -251,9 +294,11 @@ else
             {
                 var msg = _isScheduled ? "Post scheduled successfully!" : "Posted to Instagram successfully!";
                 Snackbar.Add(msg, Severity.Success);
+                // Clear form
                 _caption = "";
                 _file = null;
                 _isScheduled = false;
+                _comments.Clear();
             }
             else
             {
