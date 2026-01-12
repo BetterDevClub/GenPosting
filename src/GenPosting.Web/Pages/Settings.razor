@@ -4,6 +4,7 @@
 @inject HttpClient Http
 @inject NavigationManager Nav
 @inject ILinkedInStateService LinkedInState
+@inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
 
 <PageTitle>Settings</PageTitle>
@@ -58,6 +59,35 @@
         else
         {
             <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisconnectLinkedIn">Disconnect</MudButton>
+        }
+    </div>
+
+    @* Instagram Section *@
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div class="d-flex align-center gap-4">
+            <MudIcon Icon="@Icons.Custom.Brands.Instagram" Size="Size.Large" Color="Color.Secondary" Style="font-size: 3rem;" />
+            <div>
+                <MudText Typo="Typo.h6">Instagram</MudText>
+                @if (InstagramState.IsAuthenticated)
+                {
+                    <div class="d-flex align-center gap-2 mt-1">
+                         <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Default">Not connected</MudText>
+                }
+            </div>
+        </div>
+
+        @if (!InstagramState.IsAuthenticated)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ConnectInstagram">Connect</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisconnectInstagram">Disconnect</MudButton>
         }
     </div>
 </MudPaper>
@@ -120,5 +150,35 @@
         LinkedInState.AccessToken = null;
         _profile = null;
         Snackbar.Add("Disconnected from LinkedIn", Severity.Success);
+    }
+
+    private async Task ConnectInstagram()
+    {
+        try
+        {
+            var callbackUrl = Nav.ToAbsoluteUri("/instagram-callback").ToString();
+            var encodedCallback = Uri.EscapeDataString(callbackUrl);
+            var response = await Http.GetFromJsonAsync<InstagramAuthUrlResponse>($"/api/instagram/auth-url?redirectUri={encodedCallback}");
+            
+            if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
+            {
+                Nav.NavigateTo(response.AuthUrl, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Failed to get authorization URL", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void DisconnectInstagram()
+    {
+        InstagramState.AccessToken = null;
+        InstagramState.UserId = null;
+        Snackbar.Add("Disconnected from Instagram", Severity.Success);
     }
 }

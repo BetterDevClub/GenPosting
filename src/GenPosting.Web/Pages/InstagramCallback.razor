@@ -1,0 +1,99 @@
+@page "/instagram-callback"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IInstagramStateService InstagramState
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 80vh;">
+    <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="3">
+        @if (_processing)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Secondary" Size="Size.Large" Class="mb-4" />
+            <MudText>Completing Instagram Authorization...</MudText>
+        }
+        else
+        {
+             <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+             <MudText Typo="Typo.h6" Color="Color.Error">Authorization Failed</MudText>
+             <MudText Class="mb-4">@_errorMessage</MudText>
+             <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/settings">Back to Settings</MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error_description")]
+    public string? ErrorDescription { get; set; }
+
+    private bool _processing = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Error))
+        {
+            _processing = false;
+            _errorMessage = ErrorDescription ?? "Unknown error from Instagram";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Code))
+        {
+            _processing = false;
+            _errorMessage = "No authorization code received.";
+            return;
+        }
+
+        await ExchangeToken(Code);
+    }
+
+    private async Task ExchangeToken(string code)
+    {
+        try
+        {
+            // Remove any trailing # from code if present (sometimes OAuth callbacks have fragments)
+            if (code.EndsWith("#_"))
+            {
+               code = code.Substring(0, code.Length - 2); 
+            }
+
+            var redirectUri = Nav.ToAbsoluteUri("/instagram-callback").ToString();
+            
+            // Handle potentially duplicated slashes or query params if ToAbsoluteUri behaves unexpectedly
+            // But Nav.ToAbsoluteUri("/path") essentially does BaseUri + path
+             
+            var request = new InstagramExchangeTokenRequest(code, redirectUri);
+            var response = await Http.PostAsJsonAsync("/api/instagram/exchange-token", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var token = await response.Content.ReadFromJsonAsync<InstagramTokenResponse>();
+                if (token != null)
+                {
+                    InstagramState.AccessToken = token.AccessToken;
+                    InstagramState.UserId = token.UserId.ToString();
+                    Snackbar.Add("Instagram Connected Successfully!", Severity.Success);
+                    Nav.NavigateTo("/settings");
+                    return;
+                }
+            }
+            
+            _processing = false;
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _errorMessage = $"Failed to exchange token with server. Server said: {errorContent}";
+        }
+        catch (Exception ex)
+        {
+            _processing = false;
+            _errorMessage = $"Error: {ex.Message}";
+        }
+    }
+}

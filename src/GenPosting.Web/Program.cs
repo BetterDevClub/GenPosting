@@ -16,5 +16,6 @@ builder.Services.AddScoped(sp =>
     });
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<ILinkedInStateService, LinkedInStateService>();
+builder.Services.AddSingleton<IInstagramStateService, InstagramStateService>();
 
 await builder.Build().RunAsync();
