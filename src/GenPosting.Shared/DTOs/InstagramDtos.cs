@@ -33,3 +33,16 @@ public record InstagramInsightValue(string Value);
 public record InstagramInsightMetric(string Name, string Title, string Description, List<InstagramInsightValue> Values);
 public record InstagramInsightsResponse(List<InstagramInsightMetric> Data);
 
+public record InstagramCommentDto(
+    string Id,
+    string Text,
+    string Username,
+    string Timestamp,
+    int LikeCount,
+    string MediaId,
+    string? MediaUrl // Optional: URL of the post this comment is on
+);
+
+public record InstagramCommentListResponse(List<InstagramCommentDto> Data);
+public record ReplyToCommentRequest(string Message);
+

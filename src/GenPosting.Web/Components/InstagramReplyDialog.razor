@@ -1,0 +1,66 @@
+@using GenPosting.Shared.DTOs
+@using MudBlazor
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1" Class="mb-2"><b>@Comment.Username</b> wrote:</MudText>
+        <MudPaper Class="pa-3 mb-4 grey lighten-4" Elevation="0">
+            <MudText Typo="Typo.body2">@Comment.Text</MudText>
+        </MudPaper>
+        
+        <MudTextField @bind-Value="_replyMessage" Label="Your Reply" Variant="Variant.Outlined" Lines="3" AutoFocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitReply" Disabled="@(string.IsNullOrWhiteSpace(_replyMessage) || _isSending)">
+            @if (_isSending) { <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/> <span class="ms-2">Sending...</span> } else { <span>Reply</span> }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public InstagramCommentDto Comment { get; set; } = default!;
+    [Parameter] public string AccessToken { get; set; } = "";
+
+    private string _replyMessage = "";
+    private bool _isSending = false;
+
+    private async Task SubmitReply()
+    {
+        if (string.IsNullOrWhiteSpace(_replyMessage)) return;
+
+        _isSending = true;
+        try
+        {
+            var req = new ReplyToCommentRequest(_replyMessage);
+            var request = new HttpRequestMessage(HttpMethod.Post, $"/api/instagram/comments/{Comment.Id}/reply");
+            request.Headers.Add("X-Instagram-Token", AccessToken);
+            request.Content = JsonContent.Create(req);
+            
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to reply: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

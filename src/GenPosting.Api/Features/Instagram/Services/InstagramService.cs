@@ -351,6 +351,56 @@ public class InstagramService : IInstagramService
         )).ToList() ?? new List<InstagramInsightMetric>();
     }
 
+    public async Task<List<InstagramCommentDto>> GetRecentCommentsAsync(string accessToken, string userId)
+    {
+        // 1. Get recent media (limit to 10 to check for comments)
+        var mediaList = await GetUserMediaAsync(accessToken, userId);
+        if (!mediaList.Any()) return new List<InstagramCommentDto>();
+
+        var recentMedia = mediaList.Take(10).ToList();
+        var allComments = new List<InstagramCommentDto>();
+
+        foreach (var media in recentMedia)
+        {
+            var url = $"https://graph.facebook.com/v19.0/{media.Id}/comments?fields=id,text,username,timestamp,like_count&access_token={accessToken}";
+            try 
+            {
+                var response = await _httpClient.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<IgCommentListResponse>();
+                    if (result?.Data != null)
+                    {
+                        var mapped = result.Data.Select(c => new InstagramCommentDto(
+                            c.Id, c.Text, c.Username, c.Timestamp, c.LikeCount, 
+                            media.Id, string.IsNullOrEmpty(media.ThumbnailUrl) ? media.MediaUrl : media.ThumbnailUrl // Use thumb/url identifying post
+                        ));
+                        allComments.AddRange(mapped);
+                    }
+                }
+            } 
+            catch { /* Ignore errors for individual media */ }
+        }
+
+        // Return sorted by newest first
+        return allComments.OrderByDescending(c => DateTimeOffset.TryParse(c.Timestamp, out var dt) ? dt : DateTimeOffset.MinValue).ToList();
+    }
+
+    public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message)
+    {
+        // POST /{comment-id}/replies
+        var url = $"https://graph.facebook.com/v19.0/{commentId}/replies?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
+        var response = await _httpClient.PostAsync(url, null);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+             var err = await response.Content.ReadAsStringAsync();
+             Console.WriteLine($"[ReplyToCommentAsync] Failed: {err}");
+             return false;
+        }
+        return true;
+    }
+
     private class IgMediaDetails {
         [JsonPropertyName("media_type")] public string MediaType { get; set; } = "";
         [JsonPropertyName("media_product_type")] public string MediaProductType { get; set; } = "";
@@ -386,6 +436,15 @@ public class InstagramService : IInstagramService
     }
     
     private class IgInsightValue { [JsonPropertyName("value")] public object Value { get; set; } = new(); }
+
+    private class IgCommentListResponse { [JsonPropertyName("data")] public List<IgCommentItem> Data { get; set; } = new(); }
+    private class IgCommentItem {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+        [JsonPropertyName("text")] public string Text { get; set; } = "";
+        [JsonPropertyName("username")] public string Username { get; set; } = "";
+        [JsonPropertyName("timestamp")] public string Timestamp { get; set; } = "";
+        [JsonPropertyName("like_count")] public int LikeCount { get; set; }
+    }
 
     private class FbAccountsResponse { 
         [JsonPropertyName("data")]

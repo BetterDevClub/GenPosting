@@ -148,5 +148,19 @@ public class InstagramModule : ICarterModule
             var insights = await service.GetMediaInsightsAsync(token, mediaId);
             return Results.Ok(new InstagramInsightsResponse(insights));
         });
+
+        group.MapGet("/comments/recent", async ([FromHeader(Name = "X-Instagram-Token")] string token, [FromHeader(Name = "X-Instagram-UserId")] string userId, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+            var comments = await service.GetRecentCommentsAsync(token, userId);
+            return Results.Ok(new InstagramCommentListResponse(comments));
+        });
+
+        group.MapPost("/comments/{commentId}/reply", async (string commentId, [FromBody] ReplyToCommentRequest req, [FromHeader(Name = "X-Instagram-Token")] string token, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var success = await service.ReplyToCommentAsync(token, commentId, req.Message);
+            return success ? Results.Ok() : Results.BadRequest("Failed to reply");
+        });
     }
 }
