@@ -91,50 +91,32 @@ public class InstagramService : IInstagramService
         return new InstagramUserDto(data.Id, data.Username, "BUSINESS", data.MediaCount);
     }
 
-    public async Task<(bool Success, string Error)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName)
+    public async Task<string> UploadMediaAsync(Stream fileStream, string fileName)
     {
-        if (fileStream == null || string.IsNullOrEmpty(fileName))
-        {
-            return (false, "No file provided for Instagram upload.");
-        }
+         var contentType = fileName.EndsWith(".mp4") ? "video/mp4" : "image/jpeg";
+         return await _blobService.UploadFileAsync(fileStream, fileName, contentType);
+    }
 
+    public async Task<(bool Success, string Error)> PublishPostWithUrlAsync(string accessToken, string userId, string caption, InstagramPostType type, string mediaUrl)
+    {
         // 1. Get Instagram Business Account ID
         var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
         if (string.IsNullOrEmpty(instagramBusinessId))
         {
-            return (false, "No connected Instagram Account found. Ensure your Instagram Creator/Business account is linked to a Facebook Page.");
+            return (false, "No connected Instagram Account found.");
         }
 
-        // 2. Upload to Azure Blob Storage
-        string publicUrl;
-        try 
-        {
-             var contentType = fileName.EndsWith(".mp4") ? "video/mp4" : "image/jpeg";
-             publicUrl = await _blobService.UploadFileAsync(fileStream, fileName, contentType);
-             Console.WriteLine($"[PublishPostAsync] Uploaded media to: {publicUrl}");
-        }
-        catch (Exception ex)
-        {
-            return (false, $"Blob Storage Upload Failed: {ex.Message}");
-        }
-
-        // 3. Create Media Container
-        // Ensure URL is absolute and correctly formatted
-        Console.WriteLine($"[PublishPostAsync] Creating container for: {publicUrl}");
-        string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, publicUrl, request.Caption, request.PostType);
+        // 2. Create Media Container
+        Console.WriteLine($"[PublishPostAsync] Creating container for: {mediaUrl}");
+        string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, mediaUrl, caption, type);
         if (string.IsNullOrEmpty(containerId))
         {
              return (false, "Failed to create Instagram Media Container (API rejected media/caption).");
         }
 
-        // 4. Publish Container
+        // 3. Publish Container
         try 
         {
-            // For images, we ALSO need to check status to be safe, or just wait a bit.
-            // Official docs say images are usually ready immediately, but sometimes CDN lag happens.
-            // If it's a VIDEO or REEL, we MUST wait.
-            // If it's an IMAGE, let's wait a few seconds or poll quickly to avoid "Media ID not available"
-            
             await WaitForContainerReadyAsync(accessToken, containerId);
 
             var published = await PublishMediaContainerAsync(accessToken, instagramBusinessId, containerId);
@@ -144,6 +126,28 @@ public class InstagramService : IInstagramService
         {
             return (false, $"Publishing process failed: {ex.Message}");
         }
+    }
+
+    public async Task<(bool Success, string Error)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName)
+    {
+        if (fileStream == null || string.IsNullOrEmpty(fileName))
+        {
+            return (false, "No file provided for Instagram upload.");
+        }
+
+        // 1. Upload to Azure Blob Storage
+        string publicUrl;
+        try 
+        {
+             publicUrl = await UploadMediaAsync(fileStream, fileName);
+             Console.WriteLine($"[PublishPostAsync] Uploaded media to: {publicUrl}");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Blob Storage Upload Failed: {ex.Message}");
+        }
+
+        return await PublishPostWithUrlAsync(accessToken, userId, request.Caption, request.PostType, publicUrl);
     }
 
     private async Task<string?> GetInstagramBusinessIdAsync(string accessToken, string fbUserId)

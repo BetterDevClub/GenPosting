@@ -86,9 +86,19 @@ else
                             </MudPaper>
                         }
 
+                        <MudSwitch @bind-Value="_isScheduled" Label="Schedule for later" Color="Color.Primary" Class="mt-4" />
+                        
+                        @if (_isScheduled)
+                        {
+                            <div class="d-flex gap-4 mt-2">
+                                <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" Variant="Variant.Outlined" />
+                                <MudTimePicker Label="Time" @bind-Time="_scheduledTime" Variant="Variant.Outlined" />
+                            </div>
+                        }
+
                         <div class="d-flex justify-end gap-2 mt-6">
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PublishPost" Disabled="@(_file == null || _isPosting)">
-                                @(_isPosting ? "Posting..." : "Publish to Instagram")
+                                @(_isPosting ? "Processing..." : (_isScheduled ? "Schedule Post" : "Publish Now"))
                             </MudButton>
                         </div>
 
@@ -160,6 +170,11 @@ else
     private string _caption = "";
     private IBrowserFile? _file;
     private bool _isPosting = false;
+    
+    // Scheduling
+    private bool _isScheduled = false;
+    private DateTime? _scheduledDate = DateTime.Today;
+    private TimeSpan? _scheduledTime = DateTime.Now.TimeOfDay.Add(TimeSpan.FromMinutes(10));
 
     protected override async Task OnInitializedAsync()
     {
@@ -210,12 +225,20 @@ else
             // For now, we'll assume a direct post endpoint that handles multipart/form-data
             
             var content = new MultipartFormDataContent();
-            var fileContent = new StreamContent(_file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024)); // 15MB limit
+            var fileContent = new StreamContent(_file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024)); // Increased to 50MB for video
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(_file.ContentType);
             
             content.Add(fileContent, "file", _file.Name);
             content.Add(new StringContent(_caption), "caption");
             content.Add(new StringContent(_postType.ToString()), "postType");
+
+            if (_isScheduled && _scheduledDate.HasValue && _scheduledTime.HasValue)
+            {
+                var dt = _scheduledDate.Value.Add(_scheduledTime.Value);
+                var offset = DateTimeOffset.Now.Offset;
+                var scheduledFor = new DateTimeOffset(dt, offset);
+                content.Add(new StringContent(scheduledFor.ToString("O")), "scheduledFor");
+            }
 
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/instagram/post");
             request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
@@ -226,14 +249,16 @@ else
 
             if (response.IsSuccessStatusCode)
             {
-                Snackbar.Add("Posted to Instagram successfully!", Severity.Success);
+                var msg = _isScheduled ? "Post scheduled successfully!" : "Posted to Instagram successfully!";
+                Snackbar.Add(msg, Severity.Success);
                 _caption = "";
                 _file = null;
+                _isScheduled = false;
             }
             else
             {
                 var error = await response.Content.ReadAsStringAsync();
-                Snackbar.Add($"Failed to post: {error}", Severity.Error);
+                Snackbar.Add($"Failed: {error}", Severity.Error);
             }
         }
         catch (Exception ex)

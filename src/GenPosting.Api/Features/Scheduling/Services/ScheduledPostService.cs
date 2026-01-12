@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using GenPosting.Api.Features.LinkedIn.Models;
+using GenPosting.Api.Features.Scheduling.Models;
 
-namespace GenPosting.Api.Features.LinkedIn.Services;
+namespace GenPosting.Api.Features.Scheduling.Services;
 
 public interface IScheduledPostService
 {

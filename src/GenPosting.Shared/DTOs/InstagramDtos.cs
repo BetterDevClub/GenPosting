@@ -10,6 +10,7 @@ public enum InstagramPostType { Post, Reel, Story }
 public record CreateInstagramPostRequest(
     string Caption,
     InstagramPostType PostType,
-    List<string> MediaUrls // Assuming backend handles upload and returns URLs, or frontend sends URLs
+    List<string> MediaUrls,
+    DateTimeOffset? ScheduledFor = null
 );
 public record InstagramMediaUploadResponse(string Url);

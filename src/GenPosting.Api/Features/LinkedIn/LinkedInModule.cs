@@ -1,6 +1,9 @@
 using Carter;
 using GenPosting.Api.Features.LinkedIn.Services;
+using GenPosting.Api.Features.Scheduling.Models;
+using GenPosting.Api.Features.Scheduling.Services;
 using GenPosting.Shared.DTOs;
+using GenPosting.Shared.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GenPosting.Api.Features.LinkedIn;
@@ -77,8 +80,9 @@ public class LinkedInModule : ICarterModule
                     return Results.BadRequest("Scheduled time must be in the future.");
                 }
 
-                var scheduledPost = new GenPosting.Api.Features.LinkedIn.Models.ScheduledPost
+                var scheduledPost = new ScheduledPost
                 {
+                    Platform = SocialPlatform.LinkedIn, // Explicitly set platform
                     AccessToken = accessToken,
                     Content = request.Content,
                     MediaUrns = request.MediaUrns,
@@ -114,7 +118,7 @@ public class LinkedInModule : ICarterModule
         group.MapGet("/scheduled", async (IScheduledPostService scheduler) =>
         {
             var posts = await scheduler.GetAllScheduledPostsAsync();
-            var dtos = posts.Select(p => new ScheduledPostDto(p.Id, p.Content, p.MediaUrns, p.MediaType, p.Comments, p.ScheduledTime, p.Status ?? "Pending", p.ThumbnailUrl));
+            var dtos = posts.Select(p => new ScheduledPostDto(p.Id, p.Platform, p.Content, p.MediaUrns, p.MediaType, p.Comments, p.ScheduledTime, p.Status ?? "Pending", p.ThumbnailUrl));
             return Results.Ok(dtos);
         });
         
@@ -122,7 +126,7 @@ public class LinkedInModule : ICarterModule
         {
             var post = await scheduler.GetScheduledPostByIdAsync(id);
             if (post == null) return Results.NotFound();
-            return Results.Ok(new ScheduledPostDto(post.Id, post.Content, post.MediaUrns, post.MediaType, post.Comments, post.ScheduledTime, post.Status ?? "Pending", post.ThumbnailUrl));
+            return Results.Ok(new ScheduledPostDto(post.Id, post.Platform, post.Content, post.MediaUrns, post.MediaType, post.Comments, post.ScheduledTime, post.Status ?? "Pending", post.ThumbnailUrl));
         });
 
         group.MapDelete("/scheduled/{id}", async (Guid id, IScheduledPostService scheduler) =>

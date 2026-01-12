@@ -1,5 +1,6 @@
 @page "/calendar"
 @using GenPosting.Shared.DTOs
+@using GenPosting.Shared.Enums
 @using System.Globalization
 @inject HttpClient Http
 @inject IDialogService DialogService
@@ -75,8 +76,8 @@
                                         
                                         <div class="d-flex justify-space-between align-start mb-2">
                                              <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                                 <MudAvatar Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Style="font-size: 0.8rem;">
-                                                     <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Small"/>
+                                                 <MudAvatar Size="Size.Small" Color="@(post.Platform == SocialPlatform.Instagram ? Color.Secondary : Color.Primary)" Variant="Variant.Filled" Style="font-size: 0.8rem;">
+                                                     <MudIcon Icon="@(post.Platform == SocialPlatform.Instagram ? Icons.Custom.Brands.Instagram : Icons.Custom.Brands.LinkedIn)" Size="Size.Small"/>
                                                  </MudAvatar>
                                                  <MudText Typo="Typo.caption" Style="font-weight: 600;">@post.ScheduledTime.ToLocalTime().ToString("HH:mm")</MudText>
                                              </MudStack>

@@ -1,7 +1,10 @@
+using GenPosting.Shared.Enums;
+
 namespace GenPosting.Shared.DTOs;
 
 public record ScheduledPostDto(
     Guid Id,
+    SocialPlatform Platform,
     string Content,
     List<string>? MediaUrns,
     string MediaType,
