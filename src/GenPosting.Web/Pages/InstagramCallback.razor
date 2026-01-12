@@ -76,10 +76,9 @@
             if (response.IsSuccessStatusCode)
             {
                 var token = await response.Content.ReadFromJsonAsync<InstagramTokenResponse>();
-                if (token != null)
+                        if (token != null)
                 {
-                    InstagramState.AccessToken = token.AccessToken;
-                    InstagramState.UserId = token.UserId.ToString();
+                    await InstagramState.SetCredentialsAsync(token.AccessToken, token.UserId.ToString());
                     Snackbar.Add("Instagram Connected Successfully!", Severity.Success);
                     Nav.NavigateTo("/settings");
                     return;

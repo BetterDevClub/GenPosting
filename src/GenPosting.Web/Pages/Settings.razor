@@ -145,9 +145,9 @@
         }
     }
 
-    private void DisconnectLinkedIn()
+    private async Task DisconnectLinkedIn()
     {
-        LinkedInState.AccessToken = null;
+        await LinkedInState.SetAccessTokenAsync(null);
         _profile = null;
         Snackbar.Add("Disconnected from LinkedIn", Severity.Success);
     }
@@ -175,10 +175,9 @@
         }
     }
 
-    private void DisconnectInstagram()
+    private async Task DisconnectInstagram()
     {
-        InstagramState.AccessToken = null;
-        InstagramState.UserId = null;
+        await InstagramState.SetCredentialsAsync(null, null);
         Snackbar.Add("Disconnected from Instagram", Severity.Success);
     }
 }

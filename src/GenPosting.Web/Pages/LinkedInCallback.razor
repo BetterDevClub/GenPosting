@@ -75,9 +75,9 @@
             if (response.IsSuccessStatusCode)
             {
                 var token = await response.Content.ReadFromJsonAsync<LinkedInTokenResponse>();
-                if (token != null)
+                        if (token != null)
                 {
-                    LinkedInState.AccessToken = token.AccessToken;
+                    await LinkedInState.SetAccessTokenAsync(token.AccessToken);
                     Snackbar.Add("LinkedIn Connected Successfully!", Severity.Success);
                     Nav.NavigateTo("/linkedin");
                     return;
