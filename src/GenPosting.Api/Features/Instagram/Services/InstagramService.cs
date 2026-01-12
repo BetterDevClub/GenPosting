@@ -79,8 +79,8 @@ public class InstagramService : IInstagramService
         if (string.IsNullOrEmpty(instagramBusinessId)) return null;
 
         // 2. Get Profile Details
-        // https://graph.facebook.com/v19.0/{ig-user-id}?fields=username,profile_picture_url,media_count,name
-        var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}?fields=username,name,profile_picture_url,media_count,ig_id&access_token={accessToken}";
+        // https://graph.facebook.com/v19.0/{ig-user-id}?fields=username,profile_picture_url,media_count,followers_count,name
+        var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}?fields=username,name,profile_picture_url,media_count,followers_count,ig_id&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) return null;
@@ -88,7 +88,7 @@ public class InstagramService : IInstagramService
         var data = await response.Content.ReadFromJsonAsync<IgProfileDto>();
         if (data == null) return null;
 
-        return new InstagramUserDto(data.Id, data.Username, "BUSINESS", data.MediaCount, data.ProfilePictureUrl);
+        return new InstagramUserDto(data.Id, data.Username, "BUSINESS", data.MediaCount, data.FollowersCount, data.ProfilePictureUrl);
     }
 
     public async Task<string> UploadMediaAsync(Stream fileStream, string fileName)
@@ -400,7 +400,105 @@ public class InstagramService : IInstagramService
         }
         return true;
     }
+    public async Task<InstagramAccountInsightsResponse?> GetAccountInsightsAsync(string accessToken, string userId, DateTime? from, DateTime? to)
+    {
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        if (string.IsNullOrEmpty(instagramBusinessId)) return null;
 
+        var profile = await GetProfileAsync(accessToken, userId);
+        if (profile == null) return null;
+
+        var since = (from.HasValue ? new DateTimeOffset(from.Value) : DateTimeOffset.Now.AddDays(-30)).ToUnixTimeSeconds();
+        var until = (to.HasValue ? new DateTimeOffset(to.Value) : DateTimeOffset.Now).ToUnixTimeSeconds();
+        
+        // --- Request 1: Reach (Time Series) ---
+        // Reach works best with time_series to get the daily breakdown
+        var url1 = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/insights?metric=reach&period=day&since={since}&until={until}&access_token={accessToken}";
+        
+        var reachMetric = new InstagramAccountInsightMetricDto("reach", 0, new List<InstagramDailyValue>());
+        
+        var response1 = await _httpClient.GetAsync(url1);
+        if (response1.IsSuccessStatusCode)
+        {
+             var result1 = await response1.Content.ReadFromJsonAsync<IgInsightsResponse>();
+             if (result1 != null) reachMetric = ProcessMetric(result1.Data, "reach");
+        }
+        else 
+        {
+             Console.WriteLine($"[GetAccountInsightsAsync] Request 1 Failed: {await response1.Content.ReadAsStringAsync()}");
+        }
+        
+        // --- Request 2: Accounts Engaged & Profile Views (Total Value) ---
+        // These often require metric_type=total_value. Also "period=day" is seemingly required by API validation even for total_value?
+        var url2 = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/insights?metric=accounts_engaged,profile_views&metric_type=total_value&period=day&since={since}&until={until}&access_token={accessToken}";
+        
+        var accountsEngagedMetric = new InstagramAccountInsightMetricDto("accounts_engaged", 0, new List<InstagramDailyValue>());
+        var profileViewsMetric = new InstagramAccountInsightMetricDto("profile_views", 0, new List<InstagramDailyValue>());
+
+        var response2 = await _httpClient.GetAsync(url2);
+        if (response2.IsSuccessStatusCode)
+        {
+             var json = await response2.Content.ReadAsStringAsync();
+             // Console.WriteLine($"[GetAccountInsightsAsync] Request 2 RAW: {json}"); // Debug
+             var result2 = JsonSerializer.Deserialize<IgInsightsResponse>(json);
+             
+             if (result2 != null) 
+             {
+                 accountsEngagedMetric = ProcessMetric(result2.Data, "accounts_engaged");
+                 profileViewsMetric = ProcessMetric(result2.Data, "profile_views");
+             }
+        }
+        else
+        {
+             Console.WriteLine($"[GetAccountInsightsAsync] Request 2 Failed: {await response2.Content.ReadAsStringAsync()}");
+        }
+
+        return new InstagramAccountInsightsResponse(
+            profile.FollowersCount,
+            reachMetric,
+            accountsEngagedMetric,
+            profileViewsMetric
+        );
+    }
+
+    private InstagramAccountInsightMetricDto ProcessMetric(List<IgInsightMetric> data, string name)
+    {
+        var metric = data.FirstOrDefault(x => x.Name == name);
+        if (metric == null) return new InstagramAccountInsightMetricDto(name, 0, new List<InstagramDailyValue>());
+
+        var values = new List<InstagramDailyValue>();
+        int total = 0;
+
+        foreach (var v in metric.Values)
+        {
+             // For metric_type=total_value, EndTime might be present representing the whole period, or not.
+             // We prioritize 'value' directly.
+             
+             int val = 0;
+             if (v.Value is JsonElement je && je.ValueKind == JsonValueKind.Number)
+             {
+                 val = je.GetInt32();
+             }
+             else if (v.Value is JsonElement jeObject && jeObject.ValueKind == JsonValueKind.Object)
+             {
+                 // Handle error or special object structure
+             } 
+             else if (int.TryParse(v.Value?.ToString(), out int i))
+             {
+                 val = i;
+             }
+             
+             total += val;
+             
+             // Try to parse date if available for completeness, though for total_value it's less critical for charts
+             if (!string.IsNullOrEmpty(v.EndTime) && DateTime.TryParse(v.EndTime, out var date))
+             {
+                values.Add(new InstagramDailyValue(date, val));
+             }
+        }
+        
+        return new InstagramAccountInsightMetricDto(name, total, values);
+    }
     private class IgMediaDetails {
         [JsonPropertyName("media_type")] public string MediaType { get; set; } = "";
         [JsonPropertyName("media_product_type")] public string MediaProductType { get; set; } = "";
@@ -435,7 +533,10 @@ public class InstagramService : IInstagramService
         [JsonPropertyName("values")] public List<IgInsightValue> Values { get; set; } = new();
     }
     
-    private class IgInsightValue { [JsonPropertyName("value")] public object Value { get; set; } = new(); }
+    private class IgInsightValue { 
+        [JsonPropertyName("value")] public object Value { get; set; } = new(); 
+        [JsonPropertyName("end_time")] public string EndTime { get; set; } = "";
+    }
 
     private class IgCommentListResponse { [JsonPropertyName("data")] public List<IgCommentItem> Data { get; set; } = new(); }
     private class IgCommentItem {
@@ -471,6 +572,9 @@ public class InstagramService : IInstagramService
         
         [JsonPropertyName("media_count")] 
         public int MediaCount { get; set; } 
+
+        [JsonPropertyName("followers_count")] 
+        public int FollowersCount { get; set; }
         
         [JsonPropertyName("profile_picture_url")]
         public string ProfilePictureUrl { get; set; } = "";

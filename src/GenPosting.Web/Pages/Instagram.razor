@@ -7,10 +7,6 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<PageTitle>Instagram Dashboard</PageTitle>
-
-<MudText Typo="Typo.h3" Class="mb-4">Instagram Dashboard</MudText>
-
 @if (!InstagramState.IsAuthenticated)
 {
     <MudPaper Class="pa-8 d-flex flex-column align-center justify-center" Elevation="2">
@@ -24,9 +20,18 @@
 }
 else
 {
-    @if (_profile != null)
-    {
-        <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4" Elevation="1">
+    // Profile Header & Skeletons
+    <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4" Elevation="1">
+        @if (_isLoadingProfile)
+        {
+             <MudSkeleton SkeletonType="SkeletonType.Circle" Width="64px" Height="64px" />
+             <div>
+                 <MudSkeleton Width="150px" Height="30px" Class="mb-1"/>
+                 <MudSkeleton Width="100px" Height="20px" />
+             </div>
+        }
+        else if (_profile != null)
+        {
             <MudAvatar Size="Size.Large">
                 @if (!string.IsNullOrEmpty(_profile.ProfilePictureUrl))
                 {
@@ -41,211 +46,161 @@ else
                 <MudText Typo="Typo.h6">@_profile.Username</MudText>
                 <MudText Typo="Typo.caption">@_profile.AccountType</MudText>
             </div>
-        </MudPaper>
-    }
+        }
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Class="mr-2">Metrics for Last 30 Days</MudText>
+    </MudPaper>
 
-    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
-        <MudTabPanel Text="Dashboard" Icon="@Icons.Material.Filled.Dashboard">
-            <MudGrid>
-                <MudItem xs="12">
-                    <MudPaper Class="pa-4">
-                        <MudText Typo="Typo.h6" Class="mb-4">Create New Content</MudText>
-                
-                <MudGrid>
-                    <MudItem xs="12" md="6">
-                        @* Post Type Selector *@
-                        <MudSelect T="InstagramPostType" Label="Content Type" @bind-Value="_postType" Variant="Variant.Outlined" Class="mb-4" AnchorOrigin="Origin.BottomCenter">
-                            <MudSelectItem Value="@InstagramPostType.Post">Post (Feed)</MudSelectItem>
-                            <MudSelectItem Value="@InstagramPostType.Reel">Reel</MudSelectItem>
-                            <MudSelectItem Value="@InstagramPostType.Story">Story</MudSelectItem>
-                        </MudSelect>
-
-                        @* Caption (Hidden for Stories usually, but let's keep it mostly optional) *@
-                        @if (_postType != InstagramPostType.Story)
-                        {
-                            <MudTextField @bind-Value="_caption" 
-                                        Label="Caption" 
-                                        Variant="Variant.Outlined" 
-                                        Lines="5" 
-                                        Class="mb-4" 
-                                        Adornment="Adornment.End" 
-                                        AdornmentIcon="@Icons.Material.Filled.Edit" />
-                        }
-                        else
-                        {
-                            <MudAlert Severity="Severity.Info" Class="mb-4">Stories do not support API-based captions. Text must be burned into the image/video.</MudAlert>
-                        }
-
-                        @* File Upload *@
-                        <MudFileUpload T="IBrowserFile" FilesChanged="OnFilesChanged" Accept=".jpg, .jpeg, .png, .mp4, .mov">
-                             <ActivatorContent>
-                                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PhotoCamera">
-                                    Upload Media (@(_postType))
-                                </MudButton>
-                            </ActivatorContent>
-                        </MudFileUpload>
-
-                        @if (_file != null)
-                        {
-                             <MudPaper Class="d-flex align-center justify-space-between pa-2 mt-2" Outlined="true">
-                                <div class="d-flex align-center gap-2">
-                                    <MudIcon Icon="@Icons.Material.Filled.FilePresent" />
-                                    <MudText Typo="Typo.body2">@_file.Name (@(_file.Size / 1024) KB)</MudText>
-                                </div>
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="ClearFile" Size="Size.Small"/>
-                            </MudPaper>
-                        }
-
-                        <MudSwitch @bind-Value="_isScheduled" Label="Schedule for later" Color="Color.Primary" Class="mt-4" />
-                        
-                        @if (_isScheduled)
-                        {
-                            <div class="d-flex gap-4 mt-2 mb-4">
-                                <MudDatePicker Label="Date" @bind-Date="_scheduledDate" MinDate="DateTime.Today" Variant="Variant.Outlined" />
-                                <MudTimePicker Label="Time" @bind-Time="_scheduledTime" Variant="Variant.Outlined" />
-                            </div>
-                        }
-                        
-                        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Follow-up Comments</MudText>
-                        <MudText Typo="Typo.caption" Class="mb-2 d-block">These comments will be posted immediately after the post is published in the order shown.</MudText>
-                        
-                        @for (int i = 0; i < _comments.Count; i++)
-                        {
-                            var index = i; 
-                            <div class="d-flex gap-2 mb-2">
-                                <MudTextField Value="@_comments[index]" ValueChanged="@((string s) => _comments[index] = s)" 
-                                            Label="@($"Comment #{index+1}")" 
-                                            Variant="Variant.Outlined" 
-                                            Margin="Margin.Dense" 
-                                            FullWidth="true" 
-                                            Lines="2"/>
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => RemoveComment(index))" />
-                            </div>
-                        }
-                        <MudButton StartIcon="@Icons.Material.Filled.AddComment" Variant="Variant.Text" Color="Color.Secondary" OnClick="AddCommentField" Class="mb-4">Add Follow-up Comment</MudButton>
-
-                        <div class="d-flex justify-end gap-2 mt-6">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PublishPost" Disabled="@(_file == null || _isPosting)">
-                                @(_isPosting ? "Processing..." : (_isScheduled ? "Schedule Post" : "Publish Now"))
-                            </MudButton>
-                        </div>
-
-                    </MudItem>
-                    
-                    <MudItem xs="12" md="6">
-                         @* Preview Mockup *@
-                        <MudCard Outlined="true" Class="pa-4" Style="background-color: #fafafa; height: 100%;">
-                            <MudText Typo="Typo.overline" Class="mb-2">Preview (@_postType)</MudText>
-                            
-                            <div class="d-flex justify-center">
-                                @if (_postType == InstagramPostType.Story)
-                                {
-                                    @* Mobile Portrait Aspect Ratio *@
-                                    <MudPaper Height="400px" Width="225px" Elevation="3" Class="d-flex align-center justify-center overflow-hidden position-relative">
-                                         @if (_file != null)
-                                         {
-                                             <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" />
-                                             <MudText Typo="Typo.caption" Class="absolute-center">Media Preview</MudText>
-                                         }
-                                         else
-                                         {
-                                             <MudText Typo="Typo.caption" Color="Color.Default">No Media</MudText>
-                                         }
-                                    </MudPaper>
-                                }
-                                else
-                                {
-                                    @* Feed Post / Reel Aspect Ratio *@
-                                    <MudPaper Width="300px" Class="pb-4" Elevation="1">
-                                         <div class="d-flex align-center pa-2 gap-2">
-                                             <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px"/>
-                                             <MudSkeleton SkeletonType="SkeletonType.Text" Width="100px"/>
-                                         </div>
-                                         <MudPaper Height="300px" Width="300px" Square="true" Class="d-flex align-center justify-center grey lighten-3">
-                                             @if (_file != null)
-                                             {
-                                                  <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large"/>
-                                             }
-                                             else
-                                             {
-                                                  <MudText Typo="Typo.caption">Media Placeholder</MudText>
-                                             }
-                                         </MudPaper>
-                                         <div class="pa-2">
-                                             @if (!string.IsNullOrEmpty(_caption))
-                                             {
-                                                 <MudText Typo="Typo.body2"><b>username</b> @_caption</MudText>
-                                             }
-                                             else 
-                                             {
-                                                 <MudSkeleton SkeletonType="SkeletonType.Text" Count="2"/>
-                                             }
-                                         </div>
-                                    </MudPaper>
-                                }
-                            </div>
-                        </MudCard>
-                    </MudItem>
-                </MudGrid>
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center gap-2" Elevation="2">
+                <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Large" />
+                @if (_isLoadingProfile)
+                {
+                    <MudSkeleton Width="80px" Height="40px" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.h4">@(_profile?.FollowersCount.ToString("N0") ?? "0")</MudText>
+                }
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Followers</MudText>
             </MudPaper>
         </MudItem>
-
-        <MudItem xs="12">
-            <MudPaper Class="pa-4 mt-4">
-                 <div class="d-flex justify-space-between align-center mb-4">
-                     <MudText Typo="Typo.h6">Your Posts</MudText>
-                     <MudButton StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" OnClick="LoadPosts" Disabled="_isLoadingPosts">Refresh</MudButton>
-                 </div>
-                 
-                 <MudTable Items="@_posts" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoadingPosts" Elevation="0">
-                    <HeaderContent>
-                        <MudTh>Media</MudTh>
-                        <MudTh>Caption</MudTh>
-                        <MudTh>Type</MudTh>
-                        <MudTh>Reactions</MudTh>
-                        <MudTh>Date</MudTh>
-                        <MudTh>Actions</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Media">
-                            <MudImage Src="@(string.IsNullOrEmpty(context.ThumbnailUrl) ? context.MediaUrl : context.ThumbnailUrl)" 
-                                      Width="60" Height="60" ObjectFit="ObjectFit.Cover" Class="rounded" />
-                        </MudTd>
-                        <MudTd DataLabel="Caption">
-                            <MudTooltip Text="@context.Caption">
-                                <MudText Typo="Typo.body2" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 300px;">
-                                    @context.Caption
-                                </MudText>
-                            </MudTooltip>
-                        </MudTd>
-                        <MudTd DataLabel="Type">
-                            <MudChip T="string" Size="Size.Small" Color="@(context.MediaType == "VIDEO" ? Color.Secondary : Color.Primary)">@context.MediaType</MudChip>
-                        </MudTd>
-                        <MudTd DataLabel="Reactions">
-                            <div class="d-flex gap-2">
-                                <MudChip T="string" Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.LikeCount</MudChip>
-                                <MudChip T="string" Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@context.CommentsCount</MudChip>
-                            </div>
-                        </MudTd>
-                        <MudTd DataLabel="Date">
-                             <MudText Typo="Typo.caption">
-                                @(DateTimeOffset.TryParse(context.Timestamp, out var dt) ? dt.ToString("g") : context.Timestamp)
-                             </MudText>
-                        </MudTd>
-                        <MudTd DataLabel="Actions">
-                             <MudStack Row="true">
-                                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="@(() => ShowInsights(context))">Insights</MudButton>
-                                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Href="@context.Permalink" Target="_blank" Size="Size.Small" />
-                             </MudStack>
-                        </MudTd>
-                    </RowTemplate>
-                    <PagerContent>
-                        <MudTablePager />
-                    </PagerContent>
-                </MudTable>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center gap-2" Elevation="2">
+                <MudIcon Icon="@Icons.Material.Filled.Public" Color="Color.Success" Size="Size.Large" />
+                 @if(_isLoadingInsights) 
+                 { 
+                     <MudSkeleton Width="80px" Height="40px" /> 
+                 } 
+                 else 
+                 { 
+                    <MudText Typo="Typo.h4">@(_accountInsights?.Reach?.TotalValue.ToString("N0") ?? "0")</MudText>
+                 }
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Reach</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center gap-2" Elevation="2">
+                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Color="Color.Warning" Size="Size.Large" />
+                 @if(_isLoadingInsights) 
+                 { 
+                     <MudSkeleton Width="80px" Height="40px" /> 
+                 } 
+                 else 
+                 { 
+                    <MudText Typo="Typo.h4">@(_accountInsights?.AccountsEngaged?.TotalValue.ToString("N0") ?? "0")</MudText>
+                 }
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Accounts Engaged</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center gap-2" Elevation="2">
+                <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Info" Size="Size.Large" />
+                 @if(_isLoadingInsights) 
+                 { 
+                     <MudSkeleton Width="80px" Height="40px" /> 
+                 } 
+                 else 
+                 { 
+                    <MudText Typo="Typo.h4">@(_accountInsights?.ProfileViews?.TotalValue.ToString("N0") ?? "0")</MudText>
+                 }
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Profile Views</MudText>
             </MudPaper>
         </MudItem>
     </MudGrid>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <MudTabPanel Text="Posts" Icon="@Icons.Material.Filled.Dashboard">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudPaper Class="pa-4">
+                         <div class="d-flex justify-space-between align-center mb-4">
+                             <MudText Typo="Typo.h6">Your Posts</MudText>
+                             <MudButton StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" OnClick="LoadPosts" Disabled="_isLoadingPosts">Refresh</MudButton>
+                         </div>
+                         
+                         @if (_isLoadingPosts)
+                         {
+                             <!-- Skeletons for Posts Table -->
+                             <MudSimpleTable Elevation="0" Hover="false">
+                                 <thead>
+                                     <tr>
+                                         <th>Media</th>
+                                         <th>Caption</th>
+                                         <th>Type</th>
+                                         <th>Reactions</th>
+                                         <th>Date</th>
+                                         <th>Actions</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                                     @for(int i=0; i<3; i++)
+                                     {
+                                         <tr>
+                                             <td><MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="60px" Height="60px" Class="rounded"/></td>
+                                             <td><MudSkeleton Width="200px" /></td>
+                                             <td><MudSkeleton Width="60px" Height="30px" Class="rounded-pill"/></td>
+                                             <td><MudSkeleton Width="100px" /></td>
+                                             <td><MudSkeleton Width="100px" /></td>
+                                             <td><MudSkeleton Width="80px" Height="30px" /></td>
+                                         </tr>
+                                     }
+                                 </tbody>
+                             </MudSimpleTable>
+                         }
+                         else
+                         {
+                             <MudTable Items="@_posts" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh>Media</MudTh>
+                                    <MudTh>Caption</MudTh>
+                                    <MudTh>Type</MudTh>
+                                    <MudTh>Reactions</MudTh>
+                                    <MudTh>Date</MudTh>
+                                    <MudTh>Actions</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Media">
+                                        <MudImage Src="@(string.IsNullOrEmpty(context.ThumbnailUrl) ? context.MediaUrl : context.ThumbnailUrl)" 
+                                                  Width="60" Height="60" ObjectFit="ObjectFit.Cover" Class="rounded" />
+                                    </MudTd>
+                                    <MudTd DataLabel="Caption">
+                                        <MudTooltip Text="@context.Caption">
+                                            <MudText Typo="Typo.body2" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 300px;">
+                                                @context.Caption
+                                            </MudText>
+                                        </MudTooltip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Type">
+                                        <MudChip T="string" Size="Size.Small" Color="@(context.MediaType == "VIDEO" ? Color.Secondary : Color.Primary)">@context.MediaType</MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Reactions">
+                                        <div class="d-flex gap-2">
+                                            <MudChip T="string" Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.LikeCount</MudChip>
+                                            <MudChip T="string" Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@context.CommentsCount</MudChip>
+                                        </div>
+                                    </MudTd>
+                                    <MudTd DataLabel="Date">
+                                         <MudText Typo="Typo.caption">
+                                            @(DateTimeOffset.TryParse(context.Timestamp, out var dt) ? dt.ToString("g") : context.Timestamp)
+                                         </MudText>
+                                    </MudTd>
+                                    <MudTd DataLabel="Actions">
+                                         <MudStack Row="true">
+                                            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="@(() => ShowInsights(context))">Insights</MudButton>
+                                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Href="@context.Permalink" Target="_blank" Size="Size.Small" />
+                                         </MudStack>
+                                    </MudTd>
+                                </RowTemplate>
+                                <PagerContent>
+                                    <MudTablePager />
+                                </PagerContent>
+                            </MudTable>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
         </MudTabPanel>
         <MudTabPanel Text="Community" Icon="@Icons.Material.Filled.Forum">
             <MudPaper Class="pa-4">
@@ -256,36 +211,56 @@ else
                  
                  @if (_isLoadingComments)
                  {
-                     <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4"/>
-                 }
-
-                 <MudList T="string" Clickable="false">
-                     @foreach (var comment in _recentComments)
-                     {
-                         <MudListItem>
-                            <div class="d-flex gap-4">
-                                <MudImage Src="@comment.MediaUrl" Width="50" Height="50" ObjectFit="ObjectFit.Cover" Class="rounded" />
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-space-between">
-                                        <MudText Typo="Typo.subtitle2"><b>@comment.Username</b></MudText>
-                                        <MudText Typo="Typo.caption">@comment.Timestamp</MudText>
-                                    </div>
-                                    <MudText Typo="Typo.body2">@comment.Text</MudText>
-                                    <div class="d-flex gap-2 mt-2 align-center">
-                                         <MudIcon Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" />
-                                         <MudText Typo="Typo.caption">@comment.LikeCount</MudText>
-                                         <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenReplyDialog(comment))">Reply</MudButton>
+                     <MudList T="string">
+                        @for (int i=0; i<3; i++)
+                        {
+                            <MudListItem>
+                                <div class="d-flex gap-4 align-center">
+                                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="50px" Height="50px" Class="rounded" />
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-space-between mb-2">
+                                            <MudSkeleton Width="120px" Height="20px" />
+                                            <MudSkeleton Width="60px" Height="15px" />
+                                        </div>
+                                        <MudSkeleton Width="80%" Height="15px" Class="mb-1" />
+                                        <MudSkeleton Width="40%" Height="15px" />
                                     </div>
                                 </div>
-                            </div>
-                         </MudListItem>
-                         <MudDivider />
-                     }
-                     @if(!_recentComments.Any() && !_isLoadingComments)
-                     {
-                         <MudText Class="pa-4" Align="Align.Center">No recent comments found.</MudText>
-                     }
-                 </MudList>
+                            </MudListItem>
+                            <MudDivider />
+                        }
+                     </MudList>
+                 }
+                 else
+                 {
+                     <MudList T="string">
+                         @foreach (var comment in _recentComments)
+                         {
+                             <MudListItem>
+                                <div class="d-flex gap-4">
+                                    <MudImage Src="@comment.MediaUrl" Width="50" Height="50" ObjectFit="ObjectFit.Cover" Class="rounded" />
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-space-between">
+                                            <MudText Typo="Typo.subtitle2"><b>@comment.Username</b></MudText>
+                                            <MudText Typo="Typo.caption">@comment.Timestamp</MudText>
+                                        </div>
+                                        <MudText Typo="Typo.body2">@comment.Text</MudText>
+                                        <div class="d-flex gap-2 mt-2 align-center">
+                                             <MudIcon Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" />
+                                             <MudText Typo="Typo.caption">@comment.LikeCount</MudText>
+                                             <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenReplyDialog(comment))">Reply</MudButton>
+                                        </div>
+                                    </div>
+                                </div>
+                             </MudListItem>
+                             <MudDivider />
+                         }
+                         @if(!_recentComments.Any())
+                         {
+                             <MudText Class="pa-4" Align="Align.Center">No recent comments found.</MudText>
+                         }
+                     </MudList>
+                 }
             </MudPaper>
         </MudTabPanel>
     </MudTabs>
@@ -293,11 +268,11 @@ else
 
 @code {
     private InstagramUserDto? _profile;
-    private InstagramPostType _postType = InstagramPostType.Post;
-    private string _caption = "";
-    private List<string> _comments = new List<string>(); // Changed to List
-    private IBrowserFile? _file;
-    private bool _isPosting = false;
+    private bool _isLoadingProfile = false; // Added loading state for profile
+    
+    // Insights
+    private InstagramAccountInsightsResponse? _accountInsights;
+    private bool _isLoadingInsights = false;
     
     // Posts List
     private List<InstagramMediaDto> _posts = new();
@@ -307,23 +282,48 @@ else
     private List<InstagramCommentDto> _recentComments = new();
     private bool _isLoadingComments = false;
 
-    // Scheduling
-    private bool _isScheduled = false;
-    private DateTime? _scheduledDate = DateTime.Today;
-    private TimeSpan? _scheduledTime = DateTime.Now.TimeOfDay.Add(TimeSpan.FromMinutes(10));
-
     protected override async Task OnInitializedAsync()
     {
         if (InstagramState.IsAuthenticated)
         {
-            await LoadProfile();
-            await LoadPosts();
-            await LoadComments();
+            // Start all tasks concurrently so all skeletons appear immediately
+            var profileTask = LoadProfile();
+            var insightsTask = LoadAccountInsights();
+            var postsTask = LoadPosts();
+            var commentsTask = LoadComments();
+
+            await Task.WhenAll(profileTask, insightsTask, postsTask, commentsTask);
+        }
+    }
+
+    private async Task LoadAccountInsights()
+    {
+        _isLoadingInsights = true;
+        try 
+        {
+             // Omit 'from' and 'to' to let backend default to "Last 30 Days" which respects the API limit
+             var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/insights/account?userId={InstagramState.UserId}");
+             request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+             
+             var response = await Http.SendAsync(request);
+             if (response.IsSuccessStatusCode)
+             {
+                 _accountInsights = await response.Content.ReadFromJsonAsync<InstagramAccountInsightsResponse>();
+             }
+        }
+        catch (Exception ex)
+        {
+             Console.WriteLine($"Error loading insights: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingInsights = false;
         }
     }
 
     private async Task LoadProfile()
     {
+        _isLoadingProfile = true;
         try 
         {
             var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}");
@@ -338,100 +338,9 @@ else
         {
             Console.WriteLine($"Error loading profile: {ex.Message}");
         }
-    }
-
-    private void OnFilesChanged(IBrowserFile file)
-    {
-        _file = file;
-         // TODO: Generate preview URL for local display if needed, but risky with Blazor WebAssembly limitations on memory
-    }
-
-    private void ClearFile()
-    {
-        _file = null;
-    }
-
-    private void AddCommentField()
-    {
-        _comments.Add("");
-    }
-
-    private void RemoveComment(int index)
-    {
-        if (index >= 0 && index < _comments.Count)
+        finally 
         {
-            _comments.RemoveAt(index);
-        }
-    }
-
-    private async Task PublishPost()
-    {
-        if (_file == null) return;
-
-        _isPosting = true;
-        try
-        {
-            // Step 1: Upload Media to Backend
-            // In a real app we'd upload to a specific "Upload" endpoint that returns a temporary public URL
-            // For now, we'll assume a direct post endpoint that handles multipart/form-data
-            
-            var content = new MultipartFormDataContent();
-            var fileContent = new StreamContent(_file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024)); // Increased to 50MB for video
-            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(_file.ContentType);
-            
-            content.Add(fileContent, "file", _file.Name);
-            content.Add(new StringContent(_caption), "caption");
-            content.Add(new StringContent(_postType.ToString()), "postType");
-
-            if (_comments.Any())
-            {
-                // Join comments with a delimiter that is unlikely to be in user text. 
-                // Using ||| as agreed with backend convention.
-                var joinedComments = string.Join("|||", _comments.Where(c => !string.IsNullOrWhiteSpace(c)));
-                if (!string.IsNullOrEmpty(joinedComments))
-                {
-                    content.Add(new StringContent(joinedComments), "comments");
-                }
-            }
-
-            if (_isScheduled && _scheduledDate.HasValue && _scheduledTime.HasValue)
-            {
-                var dt = _scheduledDate.Value.Add(_scheduledTime.Value);
-                var offset = DateTimeOffset.Now.Offset;
-                var scheduledFor = new DateTimeOffset(dt, offset);
-                content.Add(new StringContent(scheduledFor.ToString("O")), "scheduledFor");
-            }
-
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/instagram/post");
-            request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-            request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
-            request.Content = content;
-
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var msg = _isScheduled ? "Post scheduled successfully!" : "Posted to Instagram successfully!";
-                Snackbar.Add(msg, Severity.Success);
-                // Clear form
-                _caption = "";
-                _file = null;
-                _isScheduled = false;
-                _comments.Clear();
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                Snackbar.Add($"Failed: {error}", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isPosting = false;
+            _isLoadingProfile = false;
         }
     }
 
@@ -502,7 +411,7 @@ else
         if (!result.Canceled)
         {
             Snackbar.Add("Reply sent!", Severity.Success);
-            await LoadComments(); // Refresh to see if (maybe) it appears, though standard API might delay
+            await LoadComments();
         }
     }
 }

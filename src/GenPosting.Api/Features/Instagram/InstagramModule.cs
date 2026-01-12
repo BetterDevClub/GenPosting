@@ -35,6 +35,13 @@ public class InstagramModule : ICarterModule
             return profile != null ? Results.Ok(profile) : Results.NotFound();
         });
 
+        group.MapGet("/insights/account", async ([FromQuery] string userId, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromHeader(Name = "X-Instagram-Token")] string token, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var result = await service.GetAccountInsightsAsync(token, userId, from, to);
+            return result != null ? Results.Ok(result) : Results.NotFound("Could not fetch account insights.");
+        });
+
         group.MapPost("/post", async (HttpRequest request, IInstagramService service, IScheduledPostService scheduledService) =>
         {
             if (!request.Headers.TryGetValue("X-Instagram-Token", out var token)) return Results.Unauthorized();

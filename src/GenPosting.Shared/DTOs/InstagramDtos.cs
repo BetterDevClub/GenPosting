@@ -3,9 +3,20 @@ namespace GenPosting.Shared.DTOs;
 public record InstagramAuthUrlResponse(string AuthUrl);
 public record InstagramExchangeTokenRequest(string Code, string RedirectUri);
 public record InstagramTokenResponse(string AccessToken, int ExpiresInSeconds, string UserId);
-public record InstagramUserDto(string Id, string Username, string AccountType, int MediaCount, string? ProfilePictureUrl);
+public record InstagramUserDto(string Id, string Username, string AccountType, int MediaCount, int FollowersCount, string? ProfilePictureUrl);
 
 public enum InstagramPostType { Post, Reel, Story }
+
+public record InstagramAccountInsightsRequest(DateTime? From = null, DateTime? To = null);
+
+public record InstagramAccountInsightMetricDto(string Metric, int TotalValue, List<InstagramDailyValue> DailyValues);
+public record InstagramDailyValue(DateTime Date, int Value);
+public record InstagramAccountInsightsResponse(
+    int FollowersCount,
+    InstagramAccountInsightMetricDto Reach,
+    InstagramAccountInsightMetricDto AccountsEngaged,
+    InstagramAccountInsightMetricDto ProfileViews
+);
 
 public record CreateInstagramPostRequest(
     string Caption,
