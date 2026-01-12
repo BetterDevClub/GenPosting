@@ -119,6 +119,15 @@
             <MudPaper Class="pa-4 h-100" Elevation="2">
                 <MudText Typo="Typo.h6" Class="mb-4">Compose</MudText>
                 
+                @if (_instagramSelected && !_linkedInSelected)
+                {
+                     <MudSelect T="InstagramPostType" Label="Instagram Post Type" @bind-Value="_instagramPostType" Variant="Variant.Outlined" Class="mb-4" Dense="true">
+                        <MudSelectItem Value="@InstagramPostType.Post">Post (Feed)</MudSelectItem>
+                        <MudSelectItem Value="@InstagramPostType.Reel">Reel</MudSelectItem>
+                        <MudSelectItem Value="@InstagramPostType.Story">Story</MudSelectItem>
+                    </MudSelect>
+                }
+
                 <MudTextField T="string" Label="What do you want to share?" Variant="Variant.Outlined" Lines="6" 
                               @bind-Value="_postContent" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.EmojiEmotions" 
                               Class="mb-4" HelperText="You can use hashtags and mentions" />
@@ -252,6 +261,7 @@
     // Selection State
     private bool _linkedInSelected;
     private bool _instagramSelected;
+    private InstagramPostType _instagramPostType = InstagramPostType.Post;
 
     // Editor State
     private string _postContent = "";
@@ -480,9 +490,19 @@
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
             content.Add(fileContent, "file", file.Name);
             
-            // Determine PostType
-            var type = file.ContentType.StartsWith("video/") ? InstagramPostType.Reel : InstagramPostType.Post;
-            content.Add(new StringContent(type.ToString()), "postType");
+            // Determine PostType based on User Selection and Platform Context
+            InstagramPostType typeToUse;
+            if (_linkedInSelected)
+            {
+                // If multiple platforms (LinkedIn+IG) are selected, default strictly to Post
+                typeToUse = InstagramPostType.Post;
+            }
+            else
+            {
+                // If only Instagram, respect the dropdown selection
+                typeToUse = _instagramPostType;
+            }
+            content.Add(new StringContent(typeToUse.ToString()), "postType");
         }
         else
         {

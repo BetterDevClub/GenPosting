@@ -191,17 +191,17 @@ public class InstagramService : IInstagramService
             $"caption={Uri.EscapeDataString(caption)}"
         };
 
-        if (type == InstagramPostType.Reel || mediaUrl.EndsWith(".mp4"))
-        {
-            query.Add("media_type=REELS");
-            query.Add($"video_url={Uri.EscapeDataString(mediaUrl)}");
-        }
-        else if (type == InstagramPostType.Story)
+        if (type == InstagramPostType.Story)
         {
              query.Add("media_type=STORIES");
              // Stories accept image_url or video_url
              if (mediaUrl.EndsWith(".mp4")) query.Add($"video_url={Uri.EscapeDataString(mediaUrl)}");
              else query.Add($"image_url={Uri.EscapeDataString(mediaUrl)}");
+        }
+        else if (type == InstagramPostType.Reel || mediaUrl.EndsWith(".mp4"))
+        {
+            query.Add("media_type=REELS");
+            query.Add($"video_url={Uri.EscapeDataString(mediaUrl)}");
         }
         else // Post (Image)
         {
