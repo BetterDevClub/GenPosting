@@ -169,5 +169,14 @@ public class InstagramModule : ICarterModule
             var success = await service.ReplyToCommentAsync(token, commentId, req.Message);
             return success ? Results.Ok() : Results.BadRequest("Failed to reply");
         });
+
+        group.MapGet("/users/search", async ([FromQuery] string query, [FromHeader(Name = "X-Instagram-Token")] string token, [FromHeader(Name = "X-Instagram-UserId")] string userId, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+            if (string.IsNullOrWhiteSpace(query)) return Results.Ok(new List<InstagramUserSearchResultDto>());
+            
+            var results = await service.SearchUsersAsync(token, userId, query);
+            return Results.Ok(results);
+        });
     }
 }

@@ -16,4 +16,5 @@ public interface IInstagramService
     Task<List<InstagramCommentDto>> GetRecentCommentsAsync(string accessToken, string userId);
     Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message);
     Task<InstagramAccountInsightsResponse?> GetAccountInsightsAsync(string accessToken, string userId, DateTime? from, DateTime? to);
+    Task<List<InstagramUserSearchResultDto>> SearchUsersAsync(string accessToken, string userId, string query);
 }

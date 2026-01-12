@@ -589,6 +589,67 @@ public class InstagramService : IInstagramService
     private class IgContainerStatus { [JsonPropertyName("status_code")] public string StatusCode { get; set; } = ""; }
 
 
+    public async Task<List<InstagramUserSearchResultDto>> SearchUsersAsync(string accessToken, string userId, string query)
+    {
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        if (string.IsNullOrEmpty(instagramBusinessId)) return new();
+
+        try 
+        {
+            // Note: Instagram API only supports looking up specific usernames via Business Discovery, not fuzzy search.
+            // We interpret 'query' as a username to look up.
+            var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}?fields=business_discovery.username({query}){{username,name,profile_picture_url,id}}&access_token={accessToken}";
+            
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                 // Likely user not found or private
+                 return new();
+            }
+
+            var json = await response.Content.ReadFromJsonAsync<BusinessDiscoveryResponse>();
+            if (json?.BusinessDiscovery != null)
+            {
+                return new List<InstagramUserSearchResultDto>
+                {
+                    new InstagramUserSearchResultDto(
+                        json.BusinessDiscovery.Username,
+                        json.BusinessDiscovery.Name ?? json.BusinessDiscovery.Username,
+                        json.BusinessDiscovery.ProfilePictureUrl ?? "",
+                        json.BusinessDiscovery.Id
+                    )
+                };
+            }
+        }
+        catch 
+        {
+            // Ignore errors
+        }
+
+        return new();
+    }
+
+    private class BusinessDiscoveryResponse
+    {
+        [JsonPropertyName("business_discovery")]
+        public BusinessDiscoveryResult? BusinessDiscovery { get; set; }
+    }
+
+    private class BusinessDiscoveryResult
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        
+        [JsonPropertyName("username")]
+        public string Username { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("profile_picture_url")]
+        public string? ProfilePictureUrl { get; set; }
+    }
+
     private class FacebookTokenDto
     {
         [JsonPropertyName("access_token")]

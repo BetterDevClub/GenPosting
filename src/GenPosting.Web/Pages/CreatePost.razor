@@ -7,6 +7,7 @@
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Create Post - GenPosting</PageTitle>
 
@@ -128,9 +129,58 @@
                     </MudSelect>
                 }
 
-                <MudTextField T="string" Label="What do you want to share?" Variant="Variant.Outlined" Lines="6" 
-                              @bind-Value="_postContent" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.EmojiEmotions" 
-                              Class="mb-4" HelperText="You can use hashtags and mentions" />
+                <div class="position-relative">
+                    <MudTextField T="string" Label="What do you want to share?" Variant="Variant.Outlined" Lines="6" 
+                                  @bind-Value="_postContent" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.EmojiEmotions" 
+                                  Class="mb-4" HelperText="You can use hashtags and mentions"
+                                  Immediate="true"
+                                  UserAttributes="@(new Dictionary<string, object> { { "id", "post-caption-input" } })"
+                                  OnKeyUp="OnCaptionKeyUp" />
+                    
+                    <MudPopover Open="@_isMentionsOpen" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" RelativeWidth="DropdownWidth.Relative" Class="z-index-max" MaxHeight="300">
+                        <MudList T="string">
+                            <MudListSubheader>
+                                Suggested Mentions (Business Accounts)
+                            </MudListSubheader>
+                            @if (_isSearchingMentions)
+                            {
+                                <MudListItem>
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                </MudListItem>
+                            }
+                            else if (!_mentionSuggestions.Any())
+                            {
+                                <MudListItem>
+                                    <MudText Typo="Typo.caption">No business accounts found matching "@_currentMentionQuery"</MudText>
+                                </MudListItem>
+                            }
+                            else 
+                            {
+                                @foreach (var user in _mentionSuggestions)
+                                {
+                                    <MudListItem OnClick="@(() => SelectMention(user))">
+                                        <div class="d-flex align-center gap-2">
+                                            <MudAvatar Size="Size.Small">
+                                                @if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+                                                {
+                                                    <MudImage Src="@user.ProfilePictureUrl" />
+                                                }
+                                                else
+                                                {
+                                                    @user.Username.FirstOrDefault()
+                                                }
+                                            </MudAvatar>
+                                            <div>
+                                                <MudText Typo="Typo.body2"><b>@user.Username</b></MudText>
+                                                <MudText Typo="Typo.caption">@user.Name</MudText>
+                                            </div>
+                                        </div>
+                                    </MudListItem>
+                                }
+                            }
+                        </MudList>
+                    </MudPopover>
+                </div>
 
                 <!-- Media Upload -->
                 <div class="d-flex align-center gap-2 mb-4">
@@ -269,6 +319,13 @@
     private List<string> _previewImages = new(); // Data URLs for preview
     private string? _previewVideoUrl;
     
+    // Mention Support
+    private bool _isMentionsOpen;
+    private bool _isSearchingMentions;
+    private List<InstagramUserSearchResultDto> _mentionSuggestions = new();
+    private string _currentMentionQuery = "";
+    private System.Timers.Timer _debounceTimer = new(500) { AutoReset = false };
+    
     // Follow-up Comments
     private string _newComment = "";
     private List<string> _comments = new();
@@ -282,6 +339,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _debounceTimer.Elapsed += async (s, e) => await InvokeAsync(SearchMentions);
         await LoadProfiles();
     }
 
@@ -539,5 +597,106 @@
             var err = await res.Content.ReadAsStringAsync();
             throw new Exception($"Instagram Failed: {err}");
         }
+    }
+
+    private async Task OnCaptionKeyUp(KeyboardEventArgs args)
+    {
+        if (!_instagramSelected) return;
+
+        try
+        {
+            // Note: Requires unsafe-eval in CSP or moving to a function in wwwroot/index.html
+            int caretPos = await JSRuntime.InvokeAsync<int>("eval", "document.getElementById('post-caption-input').selectionStart");
+            
+            if (string.IsNullOrEmpty(_postContent) || caretPos <= 0) 
+            {
+                _isMentionsOpen = false;
+                return;
+            }
+
+            string textBeforeCaret = _postContent.Substring(0, caretPos);
+            int atIndex = textBeforeCaret.LastIndexOf('@');
+
+            if (atIndex == -1) 
+            {
+                _isMentionsOpen = false;
+                return;
+            }
+
+            string token = textBeforeCaret.Substring(atIndex + 1);
+            // Mentions shouldn't have spaces or newlines
+            if (token.Contains(" ") || token.Contains("\n"))
+            {
+                 _isMentionsOpen = false;
+                 return;
+            }
+
+            _currentMentionQuery = token;
+            // Only search if length > 1 to avoid spamming for every single char immediately
+            if (_currentMentionQuery.Length > 1) 
+            {
+                _isMentionsOpen = true; 
+                _isSearchingMentions = true;
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            }
+            else
+            {
+                _isMentionsOpen = false;
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore JS interoperability errors
+        }
+    }
+
+    private async Task SearchMentions()
+    {
+        if (string.IsNullOrWhiteSpace(_currentMentionQuery)) return;
+
+        try 
+        {
+             var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/users/search?query={_currentMentionQuery}");
+             request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+             request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+
+             var response = await Http.SendAsync(request);
+             if (response.IsSuccessStatusCode)
+             {
+                 _mentionSuggestions = await response.Content.ReadFromJsonAsync<List<InstagramUserSearchResultDto>>() ?? new();
+             }
+             else 
+             {
+                 _mentionSuggestions.Clear();
+             }
+        }
+        catch 
+        {
+            _mentionSuggestions.Clear();
+        }
+        finally
+        {
+            _isSearchingMentions = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void SelectMention(InstagramUserSearchResultDto user)
+    {
+         // Find the last occurrence of the query relative to where we think the caret is/was
+         // Simplified: Replace the last occurrence of @query
+         
+         int atIndex = _postContent.LastIndexOf("@" + _currentMentionQuery);
+         if (atIndex != -1)
+         {
+             var before = _postContent.Substring(0, atIndex);
+             // Safety check: ensure string is long enough
+             var afterStart = atIndex + 1 + _currentMentionQuery.Length;
+             var after = afterStart < _postContent.Length ? _postContent.Substring(afterStart) : "";
+             
+             _postContent = $"{before}@{user.Username} {after}";
+             _isMentionsOpen = false;
+         }
     }
 }
