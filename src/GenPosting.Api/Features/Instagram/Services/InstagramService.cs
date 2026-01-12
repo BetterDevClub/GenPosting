@@ -88,7 +88,7 @@ public class InstagramService : IInstagramService
         var data = await response.Content.ReadFromJsonAsync<IgProfileDto>();
         if (data == null) return null;
 
-        return new InstagramUserDto(data.Id, data.Username, "BUSINESS", data.MediaCount);
+        return new InstagramUserDto(data.Id, data.Username, "BUSINESS", data.MediaCount, data.ProfilePictureUrl);
     }
 
     public async Task<string> UploadMediaAsync(Stream fileStream, string fileName)

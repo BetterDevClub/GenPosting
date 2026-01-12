@@ -78,7 +78,14 @@
                                 @if (_instagramProfile != null)
                                 {
                                     <MudAvatar Size="Size.Medium">
-                                        @(_instagramProfile.Username.FirstOrDefault())
+                                        @if (!string.IsNullOrEmpty(_instagramProfile.ProfilePictureUrl))
+                                        {
+                                            <MudImage Src="@_instagramProfile.ProfilePictureUrl" />
+                                        }
+                                        else
+                                        {
+                                            @(_instagramProfile.Username.FirstOrDefault())
+                                        }
                                     </MudAvatar>
                                     <div>
                                         <MudText Typo="Typo.body2" Style="font-weight: 600;">@_instagramProfile.Username</MudText>
@@ -219,7 +226,7 @@
                     <MudTabPanel Text="Instagram" Icon="@Icons.Custom.Brands.Instagram" Disabled="@(!_instagramSelected)">
                         <InstagramPostPreview 
                             AuthorName="@(_instagramProfile?.Username ?? "username")"
-                            AuthorAvatarUrl="" 
+                            AuthorAvatarUrl="@(_instagramProfile?.ProfilePictureUrl)" 
                             Content="@_postContent"
                             Images="@_previewImages"
                             VideoUrl="@_previewVideoUrl"

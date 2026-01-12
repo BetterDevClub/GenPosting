@@ -27,7 +27,14 @@ else
     {
         <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4" Elevation="1">
             <MudAvatar Size="Size.Large">
-                 @(_profile.Username.FirstOrDefault())
+                @if (!string.IsNullOrEmpty(_profile.ProfilePictureUrl))
+                {
+                    <MudImage Src="@_profile.ProfilePictureUrl" />
+                }
+                else
+                {
+                    @(_profile.Username.FirstOrDefault())
+                }
             </MudAvatar>
             <div>
                 <MudText Typo="Typo.h6">@_profile.Username</MudText>

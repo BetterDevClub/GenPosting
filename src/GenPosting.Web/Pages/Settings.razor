@@ -71,7 +71,25 @@
                 @if (InstagramState.IsAuthenticated)
                 {
                     <div class="d-flex align-center gap-2 mt-1">
-                         <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
+                        @if (_instagramProfile != null)
+                        {
+                            <MudAvatar Size="Size.Small">
+                                @if (!string.IsNullOrEmpty(_instagramProfile.ProfilePictureUrl))
+                                {
+                                    <MudImage Src="@_instagramProfile.ProfilePictureUrl" />
+                                }
+                                else
+                                {
+                                    @(_instagramProfile.Username.FirstOrDefault())
+                                }
+                            </MudAvatar>
+                            <MudText Typo="Typo.body2">Connected as <b>@_instagramProfile.Username</b></MudText>
+                        }
+                        else
+                        {
+                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ms-2"/>
+                             <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
+                        }
                     </div>
                 }
                 else
@@ -94,12 +112,17 @@
 
 @code {
     private LinkedInProfileDto? _profile;
+    private InstagramUserDto? _instagramProfile;
 
     protected override async Task OnInitializedAsync()
     {
         if (LinkedInState.IsAuthenticated)
         {
             await LoadProfile();
+        }
+        if (InstagramState.IsAuthenticated)
+        {
+            await LoadInstagramProfile();
         }
     }
 
@@ -118,6 +141,24 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading profile: {ex.Message}");
+        }
+    }
+
+    private async Task LoadInstagramProfile()
+    {
+        try 
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}");
+            request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _instagramProfile = await response.Content.ReadFromJsonAsync<InstagramUserDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading Instagram profile: {ex.Message}");
         }
     }
         
@@ -178,6 +219,7 @@
     private async Task DisconnectInstagram()
     {
         await InstagramState.SetCredentialsAsync(null, null);
+        _instagramProfile = null;
         Snackbar.Add("Disconnected from Instagram", Severity.Success);
     }
 }
