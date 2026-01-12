@@ -134,5 +134,19 @@ public class InstagramModule : ICarterModule
 
             return success ? Results.Ok() : Results.BadRequest(error);
         });
+
+        group.MapGet("/media", async ([FromHeader(Name = "X-Instagram-Token")] string token, [FromHeader(Name = "X-Instagram-UserId")] string userId, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+            var posts = await service.GetUserMediaAsync(token, userId);
+            return Results.Ok(new InstagramMediaListResponse(posts));
+        });
+
+        group.MapGet("/media/{mediaId}/insights", async (string mediaId, [FromHeader(Name = "X-Instagram-Token")] string token, IInstagramService service) =>
+        {
+            if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var insights = await service.GetMediaInsightsAsync(token, mediaId);
+            return Results.Ok(new InstagramInsightsResponse(insights));
+        });
     }
 }

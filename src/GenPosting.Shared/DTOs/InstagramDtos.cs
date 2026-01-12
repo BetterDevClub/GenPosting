@@ -14,3 +14,22 @@ public record CreateInstagramPostRequest(
     DateTimeOffset? ScheduledFor = null
 );
 public record InstagramMediaUploadResponse(string Url);
+
+public record InstagramMediaDto(
+    string Id,
+    string Caption,
+    string MediaType,
+    string MediaUrl,
+    string Permalink,
+    string ThumbnailUrl,
+    string Timestamp,
+    int LikeCount,
+    int CommentsCount
+);
+
+public record InstagramMediaListResponse(List<InstagramMediaDto> Data);
+
+public record InstagramInsightValue(string Value);
+public record InstagramInsightMetric(string Name, string Title, string Description, List<InstagramInsightValue> Values);
+public record InstagramInsightsResponse(List<InstagramInsightMetric> Data);
+

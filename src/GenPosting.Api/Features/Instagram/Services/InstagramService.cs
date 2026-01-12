@@ -278,7 +278,115 @@ public class InstagramService : IInstagramService
         return true;
     }
 
+    public async Task<List<InstagramMediaDto>> GetUserMediaAsync(string accessToken, string userId)
+    {
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        if (string.IsNullOrEmpty(instagramBusinessId)) return new List<InstagramMediaDto>();
+
+        var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count&access_token={accessToken}";
+        var response = await _httpClient.GetAsync(url);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+             var error = await response.Content.ReadAsStringAsync();
+             Console.WriteLine($"[GetUserMediaAsync] Error: {error}");
+             return new List<InstagramMediaDto>();
+        }
+        
+        var result = await response.Content.ReadFromJsonAsync<IgMediaListResponse>();
+        
+        return result?.Data.Select(x => new InstagramMediaDto(
+            x.Id, x.Caption, x.MediaType, x.MediaUrl, x.Permalink, x.ThumbnailUrl, x.Timestamp, x.LikeCount, x.CommentsCount
+        )).ToList() ?? new List<InstagramMediaDto>();
+    }
+
+    public async Task<List<InstagramInsightMetric>> GetMediaInsightsAsync(string accessToken, string mediaId)
+    {
+        // 1. Determine Media Type to select correct metrics
+        var typeUrl = $"https://graph.facebook.com/v19.0/{mediaId}?fields=media_type,media_product_type&access_token={accessToken}";
+        var typeResp = await _httpClient.GetAsync(typeUrl);
+        
+        string metrics;
+        if (typeResp.IsSuccessStatusCode)
+        {
+             var details = await typeResp.Content.ReadFromJsonAsync<IgMediaDetails>();
+             // Logic: https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights
+             if (details?.MediaProductType == "REELS" || details?.MediaType == "VIDEO")
+             {
+                 // Consolidate Video & Reels logic. 
+                 // 'impressions' and 'plays' are often tricky/deprecated for these types in v22+.
+                 // We rely on 'reach' and engagement stats.
+                 metrics = "reach,total_interactions,saved,likes,comments,shares"; 
+             }
+             else 
+             {
+                 // Image/Carousel
+                 // 'impressions' removed due to v22 deprecation/error for some media.
+                 metrics = "reach,saved,total_interactions,likes,comments";
+             }
+        }
+        else
+        {
+             // Fallback if detail fetch fails
+             metrics = "reach,saved"; 
+        }
+
+        var url = $"https://graph.facebook.com/v19.0/{mediaId}/insights?metric={metrics}&access_token={accessToken}";
+        var response = await _httpClient.GetAsync(url);
+        
+        if (!response.IsSuccessStatusCode) 
+        {
+             // Debugging: Log error
+             try {
+                var err = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[GetMediaInsightsAsync] Failed: {err}");
+             } catch {}
+             return new List<InstagramInsightMetric>();
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<IgInsightsResponse>();
+        return result?.Data.Select(x => new InstagramInsightMetric(
+            x.Name, x.Title, x.Description, 
+            x.Values.Select(v => new InstagramInsightValue(v.Value.ToString() ?? "")).ToList()
+        )).ToList() ?? new List<InstagramInsightMetric>();
+    }
+
+    private class IgMediaDetails {
+        [JsonPropertyName("media_type")] public string MediaType { get; set; } = "";
+        [JsonPropertyName("media_product_type")] public string MediaProductType { get; set; } = "";
+    }
+
     // DTOs for Graph API responses
+    private class IgMediaListResponse
+    {
+        [JsonPropertyName("data")]
+        public List<IgMediaItem> Data { get; set; } = new();
+    }
+    
+    private class IgMediaItem
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+        [JsonPropertyName("caption")] public string Caption { get; set; } = "";
+        [JsonPropertyName("media_type")] public string MediaType { get; set; } = "";
+        [JsonPropertyName("media_url")] public string MediaUrl { get; set; } = "";
+        [JsonPropertyName("permalink")] public string Permalink { get; set; } = "";
+        [JsonPropertyName("thumbnail_url")] public string ThumbnailUrl { get; set; } = "";
+        [JsonPropertyName("timestamp")] public string Timestamp { get; set; } = "";
+        [JsonPropertyName("like_count")] public int LikeCount { get; set; }
+        [JsonPropertyName("comments_count")] public int CommentsCount { get; set; }
+    }
+
+    private class IgInsightsResponse { [JsonPropertyName("data")] public List<IgInsightMetric> Data { get; set; } = new(); }
+    
+    private class IgInsightMetric {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("title")] public string Title { get; set; } = "";
+        [JsonPropertyName("description")] public string Description { get; set; } = "";
+        [JsonPropertyName("values")] public List<IgInsightValue> Values { get; set; } = new();
+    }
+    
+    private class IgInsightValue { [JsonPropertyName("value")] public object Value { get; set; } = new(); }
+
     private class FbAccountsResponse { 
         [JsonPropertyName("data")]
         public List<FbPageDto> Data { get; set; } = new(); 

@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Instagram Dashboard</PageTitle>
 
@@ -186,6 +187,62 @@ else
                 </MudGrid>
             </MudPaper>
         </MudItem>
+
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 mt-4">
+                 <div class="d-flex justify-space-between align-center mb-4">
+                     <MudText Typo="Typo.h6">Your Posts</MudText>
+                     <MudButton StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" OnClick="LoadPosts" Disabled="_isLoadingPosts">Refresh</MudButton>
+                 </div>
+                 
+                 <MudTable Items="@_posts" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoadingPosts" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Media</MudTh>
+                        <MudTh>Caption</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh>Reactions</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Media">
+                            <MudImage Src="@(string.IsNullOrEmpty(context.ThumbnailUrl) ? context.MediaUrl : context.ThumbnailUrl)" 
+                                      Width="60" Height="60" ObjectFit="ObjectFit.Cover" Class="rounded" />
+                        </MudTd>
+                        <MudTd DataLabel="Caption">
+                            <MudTooltip Text="@context.Caption">
+                                <MudText Typo="Typo.body2" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 300px;">
+                                    @context.Caption
+                                </MudText>
+                            </MudTooltip>
+                        </MudTd>
+                        <MudTd DataLabel="Type">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.MediaType == "VIDEO" ? Color.Secondary : Color.Primary)">@context.MediaType</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Reactions">
+                            <div class="d-flex gap-2">
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.LikeCount</MudChip>
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@context.CommentsCount</MudChip>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Date">
+                             <MudText Typo="Typo.caption">
+                                @(DateTimeOffset.TryParse(context.Timestamp, out var dt) ? dt.ToString("g") : context.Timestamp)
+                             </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Actions">
+                             <MudStack Row="true">
+                                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="@(() => ShowInsights(context))">Insights</MudButton>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Href="@context.Permalink" Target="_blank" Size="Size.Small" />
+                             </MudStack>
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager />
+                    </PagerContent>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
     </MudGrid>
 }
 
@@ -197,6 +254,10 @@ else
     private IBrowserFile? _file;
     private bool _isPosting = false;
     
+    // Posts List
+    private List<InstagramMediaDto> _posts = new();
+    private bool _isLoadingPosts = false;
+
     // Scheduling
     private bool _isScheduled = false;
     private DateTime? _scheduledDate = DateTime.Today;
@@ -207,6 +268,7 @@ else
         if (InstagramState.IsAuthenticated)
         {
             await LoadProfile();
+            await LoadPosts();
         }
     }
 
@@ -321,5 +383,37 @@ else
         {
             _isPosting = false;
         }
+    }
+
+    private async Task LoadPosts()
+    {
+        _isLoadingPosts = true;
+        try 
+        {
+             var request = new HttpRequestMessage(HttpMethod.Get, "/api/instagram/media");
+             request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+             request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+             var response = await Http.SendAsync(request);
+             if (response.IsSuccessStatusCode)
+             {
+                 var result = await response.Content.ReadFromJsonAsync<InstagramMediaListResponse>();
+                 _posts = result?.Data ?? new();
+             }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load posts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingPosts = false;
+        }
+    }
+
+    private void ShowInsights(InstagramMediaDto post)
+    {
+        var parameters = new DialogParameters { ["MediaId"] = post.Id, ["AccessToken"] = InstagramState.AccessToken }; 
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        DialogService.Show<GenPosting.Web.Components.InstagramInsightsDialog>($"Insights: {post.MediaType}", parameters, options);
     }
 }
