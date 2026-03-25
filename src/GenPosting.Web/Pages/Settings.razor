@@ -5,28 +5,45 @@
 @inject NavigationManager Nav
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
+@inject IFacebookStateService FacebookState
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 
-<PageTitle>Settings</PageTitle>
+<PageTitle>Settings - GenPosting</PageTitle>
 
-<MudText Typo="Typo.h3" Class="mb-4">Settings</MudText>
+<div class="d-flex align-center justify-space-between mb-6">
+    <MudText Typo="Typo.h4" Style="font-weight: 700;">Settings</MudText>
+</div>
 
-<MudPaper Class="pa-6" Elevation="2">
-    <MudText Typo="Typo.h5" Class="mb-4">Connected Accounts</MudText>
-    <MudDivider Class="mb-4" />
+<!-- Connected Accounts -->
+<MudText Typo="Typo.h6" Class="mb-4" Style="font-weight: 600;">Connected Accounts</MudText>
+<MudGrid Class="mb-8">
+    <!-- LinkedIn Card -->
+    <MudItem xs="12" sm="6" md="4">
+        <MudCard Style="border-top: 4px solid #0A66C2; height: 100%;" Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center gap-3 mb-4">
+                    <MudAvatar Style="background-color: #0A66C2;" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Style="color: white;" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight: 700;">LinkedIn</MudText>
+                        @if (LinkedInState.IsAuthenticated)
+                        {
+                            <MudChip T="string" Size="Size.Small" Style="background-color: #4CAF50; color: white;" Icon="@Icons.Material.Filled.CheckCircle">Connected</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not connected</MudChip>
+                        }
+                    </div>
+                </div>
 
-    @* LinkedIn Section *@
-    <div class="d-flex align-center justify-space-between mb-4">
-        <div class="d-flex align-center gap-4">
-            <MudIcon Icon="@Icons.Custom.Brands.LinkedIn" Size="Size.Large" Color="Color.Primary" Style="font-size: 3rem;" />
-            <div>
-                <MudText Typo="Typo.h6">LinkedIn</MudText>
                 @if (LinkedInState.IsAuthenticated)
                 {
-                    <div class="d-flex align-center gap-2 mt-1">
-                        @if (_profile != null)
-                        {
+                    @if (_profile != null)
+                    {
+                        <div class="d-flex align-center gap-2 mb-2">
                             <MudAvatar Size="Size.Small">
                                 @if (!string.IsNullOrEmpty(_profile.PictureUrl))
                                 {
@@ -37,43 +54,63 @@
                                     @(_profile.Name.FirstOrDefault())
                                 }
                             </MudAvatar>
-                            <MudText Typo="Typo.body2">Connected as <b>@_profile.Name</b></MudText>
-                        }
-                        else
-                        {
-                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ms-2"/>
-                             <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
-                        }
-                    </div>
+                            <MudText Typo="Typo.body2"><b>@_profile.Name</b></MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudSkeleton Width="140px" Height="24px" Class="mb-2" />
+                    }
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Default">Not connected</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.6;" Class="mb-2">Connect your LinkedIn account to schedule posts.</MudText>
                 }
-            </div>
-        </div>
+            </MudCardContent>
+            <MudCardActions>
+                @if (!LinkedInState.IsAuthenticated)
+                {
+                    <MudButton Variant="Variant.Filled" FullWidth="true" OnClick="ConnectLinkedIn"
+                               Style="background-color: #0A66C2; color: white;" StartIcon="@Icons.Custom.Brands.LinkedIn">
+                        Connect LinkedIn
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" FullWidth="true" Color="Color.Error" OnClick="DisconnectLinkedIn">
+                        Disconnect
+                    </MudButton>
+                }
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 
-        @if (!LinkedInState.IsAuthenticated)
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConnectLinkedIn">Connect</MudButton>
-        }
-        else
-        {
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisconnectLinkedIn">Disconnect</MudButton>
-        }
-    </div>
+    <!-- Instagram Card -->
+    <MudItem xs="12" sm="6" md="4">
+        <MudCard Style="border-top: 4px solid #E1306C; height: 100%;" Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center gap-3 mb-4">
+                    <MudAvatar Style="background-color: #E1306C;" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Custom.Brands.Instagram" Style="color: white;" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight: 700;">Instagram</MudText>
+                        @if (InstagramState.IsAuthenticated)
+                        {
+                            <MudChip T="string" Size="Size.Small" Style="background-color: #4CAF50; color: white;" Icon="@Icons.Material.Filled.CheckCircle">Connected</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not connected</MudChip>
+                        }
+                    </div>
+                </div>
 
-    @* Instagram Section *@
-    <div class="d-flex align-center justify-space-between mb-4">
-        <div class="d-flex align-center gap-4">
-            <MudIcon Icon="@Icons.Custom.Brands.Instagram" Size="Size.Large" Color="Color.Secondary" Style="font-size: 3rem;" />
-            <div>
-                <MudText Typo="Typo.h6">Instagram</MudText>
                 @if (InstagramState.IsAuthenticated)
                 {
-                    <div class="d-flex align-center gap-2 mt-1">
-                        @if (_instagramProfile != null)
-                        {
+                    @if (_instagramProfile != null)
+                    {
+                        <div class="d-flex align-center gap-2 mb-2">
                             <MudAvatar Size="Size.Small">
                                 @if (!string.IsNullOrEmpty(_instagramProfile.ProfilePictureUrl))
                                 {
@@ -84,36 +121,109 @@
                                     @(_instagramProfile.Username.FirstOrDefault())
                                 }
                             </MudAvatar>
-                            <MudText Typo="Typo.body2">Connected as <b>@_instagramProfile.Username</b></MudText>
-                        }
-                        else
-                        {
-                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ms-2"/>
-                             <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
-                        }
-                    </div>
+                            <MudText Typo="Typo.body2"><b>@@@_instagramProfile.Username</b></MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudSkeleton Width="140px" Height="24px" Class="mb-2" />
+                    }
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Default">Not connected</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.6;" Class="mb-2">Connect your Instagram account to schedule posts.</MudText>
                 }
-            </div>
-        </div>
+            </MudCardContent>
+            <MudCardActions>
+                @if (!InstagramState.IsAuthenticated)
+                {
+                    <MudButton Variant="Variant.Filled" FullWidth="true" OnClick="ConnectInstagram"
+                               Style="background-color: #E1306C; color: white;" StartIcon="@Icons.Custom.Brands.Instagram">
+                        Connect Instagram
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" FullWidth="true" Color="Color.Error" OnClick="DisconnectInstagram">
+                        Disconnect
+                    </MudButton>
+                }
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 
-        @if (!InstagramState.IsAuthenticated)
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ConnectInstagram">Connect</MudButton>
-        }
-        else
-        {
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisconnectInstagram">Disconnect</MudButton>
-        }
-    </div>
-</MudPaper>
+    <!-- Facebook Card -->
+    <MudItem xs="12" sm="6" md="4">
+        <MudCard Style="border-top: 4px solid #1877F2; height: 100%;" Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center gap-3 mb-4">
+                    <MudAvatar Style="background-color: #1877F2;" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Custom.Brands.Facebook" Style="color: white;" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight: 700;">Facebook</MudText>
+                        @if (FacebookState.IsAuthenticated)
+                        {
+                            <MudChip T="string" Size="Size.Small" Style="background-color: #4CAF50; color: white;" Icon="@Icons.Material.Filled.CheckCircle">Connected</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not connected</MudChip>
+                        }
+                    </div>
+                </div>
+
+                @if (FacebookState.IsAuthenticated)
+                {
+                    @if (_facebookProfile != null)
+                    {
+                        <div class="d-flex align-center gap-2 mb-2">
+                            <MudAvatar Size="Size.Small">
+                                @if (!string.IsNullOrEmpty(_facebookProfile.ProfilePictureUrl))
+                                {
+                                    <MudImage Src="@_facebookProfile.ProfilePictureUrl" />
+                                }
+                                else
+                                {
+                                    @(_facebookProfile.Name.FirstOrDefault())
+                                }
+                            </MudAvatar>
+                            <MudText Typo="Typo.body2"><b>@_facebookProfile.Name</b></MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudSkeleton Width="140px" Height="24px" Class="mb-2" />
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Style="opacity: 0.6;" Class="mb-2">Connect your Facebook account to schedule posts.</MudText>
+                }
+            </MudCardContent>
+            <MudCardActions>
+                @if (!FacebookState.IsAuthenticated)
+                {
+                    <MudButton Variant="Variant.Filled" FullWidth="true" OnClick="ConnectFacebook"
+                               Style="background-color: #1877F2; color: white;" StartIcon="@Icons.Custom.Brands.Facebook">
+                        Connect Facebook
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" FullWidth="true" Color="Color.Error" OnClick="DisconnectFacebook">
+                        Disconnect
+                    </MudButton>
+                }
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>
 
 @code {
     private LinkedInProfileDto? _profile;
     private InstagramUserDto? _instagramProfile;
+    private FacebookUserDto? _facebookProfile;
 
     protected override async Task OnInitializedAsync()
     {
@@ -124,6 +234,10 @@
         if (InstagramState.IsAuthenticated)
         {
             await LoadInstagramProfile();
+        }
+        if (FacebookState.IsAuthenticated)
+        {
+            await LoadFacebookProfile();
         }
     }
 
@@ -160,6 +274,24 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading Instagram profile: {ex.Message}");
+        }
+    }
+
+    private async Task LoadFacebookProfile()
+    {
+        try 
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}");
+            request.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _facebookProfile = await response.Content.ReadFromJsonAsync<FacebookUserDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading Facebook profile: {ex.Message}");
         }
     }
         
@@ -230,5 +362,35 @@
         await InstagramState.SetCredentialsAsync(null, null);
         _instagramProfile = null;
         Snackbar.Add("Disconnected from Instagram", Severity.Success);
+    }
+
+    private async Task ConnectFacebook()
+    {
+        try
+        {
+            var callbackUrl = Nav.ToAbsoluteUri("/facebook-callback").ToString();
+            var encodedCallback = Uri.EscapeDataString(callbackUrl);
+            var response = await Http.GetFromJsonAsync<FacebookAuthUrlResponse>($"/api/facebook/auth-url?redirectUri={encodedCallback}");
+            
+            if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
+            {
+                Nav.NavigateTo(response.AuthUrl, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Failed to get authorization URL", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DisconnectFacebook()
+    {
+        await FacebookState.SetCredentialsAsync(null, null);
+        _facebookProfile = null;
+        Snackbar.Add("Disconnected from Facebook", Severity.Success);
     }
 }

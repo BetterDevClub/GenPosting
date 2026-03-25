@@ -1,0 +1,94 @@
+@page "/facebook-callback"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IFacebookStateService FacebookState
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 80vh;">
+    <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="3">
+        @if (_processing)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Secondary" Size="Size.Large" Class="mb-4" />
+            <MudText>Completing Facebook Authorization...</MudText>
+        }
+        else
+        {
+             <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+             <MudText Typo="Typo.h6" Color="Color.Error">Authorization Failed</MudText>
+             <MudText Class="mb-4">@_errorMessage</MudText>
+             <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/settings">Back to Settings</MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error_description")]
+    public string? ErrorDescription { get; set; }
+
+    private bool _processing = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Error))
+        {
+            _processing = false;
+            _errorMessage = ErrorDescription ?? "Unknown error from Facebook";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Code))
+        {
+            _processing = false;
+            _errorMessage = "No authorization code received.";
+            return;
+        }
+
+        await ExchangeToken(Code);
+    }
+
+    private async Task ExchangeToken(string code)
+    {
+        try
+        {
+            if (code.EndsWith("#_"))
+            {
+               code = code.Substring(0, code.Length - 2); 
+            }
+
+            var redirectUri = Nav.ToAbsoluteUri("/facebook-callback").ToString();
+            
+            var request = new FacebookExchangeTokenRequest(code, redirectUri);
+            var response = await Http.PostAsJsonAsync("/api/facebook/exchange-token", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var token = await response.Content.ReadFromJsonAsync<FacebookTokenResponse>();
+                        if (token != null)
+                {
+                    await FacebookState.SetCredentialsAsync(token.AccessToken, token.UserId.ToString());
+                    Snackbar.Add("Facebook Connected Successfully!", Severity.Success);
+                    Nav.NavigateTo("/settings");
+                    return;
+                }
+            }
+            
+            _processing = false;
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _errorMessage = $"Failed to exchange token with server. Server said: {errorContent}";
+        }
+        catch (Exception ex)
+        {
+            _processing = false;
+            _errorMessage = $"Error: {ex.Message}";
+        }
+    }
+}

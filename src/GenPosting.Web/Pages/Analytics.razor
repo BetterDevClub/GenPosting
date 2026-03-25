@@ -1,0 +1,628 @@
+@page "/analytics"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Web.Services
+@inject HttpClient Http
+@inject ILinkedInStateService LinkedInState
+@inject IInstagramStateService InstagramState
+@inject IFacebookStateService FacebookState
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Analytics – GenPosting</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight: 700;">Analytics</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="opacity: 0.6;">Platform performance across all your connected accounts.</MudText>
+
+<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="false" PanelClass="pt-4"
+         @bind-ActivePanelIndex="_activeTab" Color="Color.Default">
+
+    @* ──────────── LINKEDIN ──────────── *@
+    <MudTabPanel Icon="@Icons.Custom.Brands.LinkedIn" Text="LinkedIn"
+                 Style="@(_activeTab == 0 ? "border-bottom: 3px solid #0A66C2;" : "")">
+        @if (!LinkedInState.IsAuthenticated)
+        {
+            <EmptyState Icon="@Icons.Custom.Brands.LinkedIn"
+                        Title="LinkedIn not connected"
+                        Message="Connect your LinkedIn account in Settings to see analytics."
+                        ActionLabel="Go to Settings" ActionHref="/settings"
+                        MinHeight="260px" />
+        }
+        else
+        {
+            @* Profile header *@
+            <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4 rounded-xl" Elevation="1"
+                      Style="border-top: 4px solid #0A66C2;">
+                @if (_liProfileLoading)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="56px" Height="56px" />
+                    <div><MudSkeleton Width="140px" Height="24px" Class="mb-1" /><MudSkeleton Width="100px" Height="18px" /></div>
+                }
+                else if (_liProfile != null)
+                {
+                    <MudAvatar Size="Size.Large">
+                        @if (!string.IsNullOrEmpty(_liProfile.PictureUrl))
+                        {
+                            <MudImage Src="@_liProfile.PictureUrl" />
+                        }
+                        else
+                        {
+                            @(_liProfile.Name.FirstOrDefault())
+                        }
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight:600;">@_liProfile.Name</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                 Style="color: #0A66C2; padding: 0;">LinkedIn Account</MudChip>
+                    </div>
+                }
+                <MudSpacer />
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadLinkedIn" Disabled="@_liProfileLoading">Refresh</MudButton>
+            </MudPaper>
+
+            @* Scheduled posts *@
+            <MudPaper Class="pa-4 rounded-xl" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600;">Scheduled Posts</MudText>
+                @if (_liPostsLoading)
+                {
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <MudSkeleton Height="48px" Class="mb-2 rounded" />
+                    }
+                }
+                else if (!_liScheduledPosts.Any())
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.ScheduleSend"
+                                Title="No scheduled posts"
+                                Message="Posts you schedule for LinkedIn will appear here."
+                                ActionLabel="Create Post" ActionHref="/create"
+                                MinHeight="180px" />
+                }
+                else
+                {
+                    <MudTable Items="@_liScheduledPosts" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Content</MudTh>
+                            <MudTh>Scheduled</MudTh>
+                            <MudTh>Status</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Content">
+                                <MudText Typo="Typo.body2" Style="max-width:400px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                    @context.Content
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Scheduled">
+                                <MudText Typo="Typo.caption">@context.ScheduledTime.ToString("g")</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Status">
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(context.Status == "Published" ? Color.Success : context.Status == "Failed" ? Color.Error : Color.Default)">
+                                    @context.Status
+                                </MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent><MudTablePager /></PagerContent>
+                    </MudTable>
+                }
+            </MudPaper>
+        }
+    </MudTabPanel>
+
+    @* ──────────── INSTAGRAM ──────────── *@
+    <MudTabPanel Icon="@Icons.Custom.Brands.Instagram" Text="Instagram"
+                 Style="@(_activeTab == 1 ? "border-bottom: 3px solid #E1306C;" : "")">
+        @if (!InstagramState.IsAuthenticated)
+        {
+            <EmptyState Icon="@Icons.Custom.Brands.Instagram"
+                        Title="Instagram not connected"
+                        Message="Connect your Instagram account in Settings to see analytics."
+                        ActionLabel="Go to Settings" ActionHref="/settings"
+                        MinHeight="260px" />
+        }
+        else
+        {
+            @* Profile header *@
+            <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4 rounded-xl" Elevation="1"
+                      Style="border-top: 4px solid #E1306C;">
+                @if (_igProfileLoading)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="56px" Height="56px" />
+                    <div><MudSkeleton Width="140px" Height="24px" Class="mb-1" /><MudSkeleton Width="100px" Height="18px" /></div>
+                }
+                else if (_igProfile != null)
+                {
+                    <MudAvatar Size="Size.Large">
+                        @if (!string.IsNullOrEmpty(_igProfile.ProfilePictureUrl))
+                        {
+                            <MudImage Src="@_igProfile.ProfilePictureUrl" />
+                        }
+                        else
+                        {
+                            @(_igProfile.Username.FirstOrDefault())
+                        }
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight:600;">@_igProfile.Username</MudText>
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">@_igProfile.AccountType</MudText>
+                    </div>
+                }
+                <MudSpacer />
+                <MudText Typo="Typo.caption" Style="opacity:0.5;" Class="mr-2">Last 30 days</MudText>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadInstagram" Disabled="@_igProfileLoading">Refresh</MudButton>
+            </MudPaper>
+
+            @* Metrics row *@
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" />
+                        @if (_igInsightsLoading) { <MudSkeleton Width="60px" Height="32px" /> }
+                        else { <MudText Typo="Typo.h5" Style="font-weight:700;">@(_igProfile?.FollowersCount.ToString("N0") ?? "–")</MudText> }
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">Followers</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
+                        <MudIcon Icon="@Icons.Material.Filled.Public" Color="Color.Success" />
+                        @if (_igInsightsLoading) { <MudSkeleton Width="60px" Height="32px" /> }
+                        else { <MudText Typo="Typo.h5" Style="font-weight:700;">@(_igInsights?.Reach?.TotalValue.ToString("N0") ?? "–")</MudText> }
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">Reach</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
+                        <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Color="Color.Warning" />
+                        @if (_igInsightsLoading) { <MudSkeleton Width="60px" Height="32px" /> }
+                        else { <MudText Typo="Typo.h5" Style="font-weight:700;">@(_igInsights?.AccountsEngaged?.TotalValue.ToString("N0") ?? "–")</MudText> }
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">Engaged</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Info" />
+                        @if (_igInsightsLoading) { <MudSkeleton Width="60px" Height="32px" /> }
+                        else { <MudText Typo="Typo.h5" Style="font-weight:700;">@(_igInsights?.ProfileViews?.TotalValue.ToString("N0") ?? "–")</MudText> }
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">Profile Views</MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            @* Posts table *@
+            <MudPaper Class="pa-4 rounded-xl" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600;">Recent Posts</MudText>
+                @if (_igPostsLoading)
+                {
+                    @for (int i = 0; i < 3; i++) { <MudSkeleton Height="48px" Class="mb-2 rounded" /> }
+                }
+                else if (!_igPosts.Any())
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.PhotoLibrary"
+                                Title="No posts yet"
+                                Message="Your Instagram posts will appear here."
+                                MinHeight="140px" />
+                }
+                else
+                {
+                    <MudTable Items="@_igPosts" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Media</MudTh>
+                            <MudTh>Caption</MudTh>
+                            <MudTh>Type</MudTh>
+                            <MudTh>Reactions</MudTh>
+                            <MudTh>Date</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Media">
+                                <MudImage Src="@(string.IsNullOrEmpty(context.ThumbnailUrl) ? context.MediaUrl : context.ThumbnailUrl)"
+                                          Width="56" Height="56" ObjectFit="ObjectFit.Cover" Class="rounded" />
+                            </MudTd>
+                            <MudTd DataLabel="Caption">
+                                <MudText Typo="Typo.body2" Style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                    @context.Caption
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Type">
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(context.MediaType == "VIDEO" ? Color.Secondary : Color.Primary)">
+                                    @context.MediaType
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Reactions">
+                                <div class="d-flex gap-2">
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.LikeCount</MudChip>
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@context.CommentsCount</MudChip>
+                                </div>
+                            </MudTd>
+                            <MudTd DataLabel="Date">
+                                <MudText Typo="Typo.caption">
+                                    @(DateTimeOffset.TryParse(context.Timestamp, out var dt) ? dt.ToString("g") : context.Timestamp)
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudStack Row="true">
+                                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary"
+                                               OnClick="@(() => ShowIgInsights(context))">Insights</MudButton>
+                                    <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
+                                                   Href="@context.Permalink" Target="_blank" Size="Size.Small" />
+                                </MudStack>
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent><MudTablePager /></PagerContent>
+                    </MudTable>
+                }
+            </MudPaper>
+        }
+    </MudTabPanel>
+
+    @* ──────────── FACEBOOK ──────────── *@
+    <MudTabPanel Icon="@Icons.Custom.Brands.Facebook" Text="Facebook"
+                 Style="@(_activeTab == 2 ? "border-bottom: 3px solid #1877F2;" : "")">
+        @if (!FacebookState.IsAuthenticated)
+        {
+            <EmptyState Icon="@Icons.Custom.Brands.Facebook"
+                        Title="Facebook not connected"
+                        Message="Connect your Facebook account in Settings to see analytics."
+                        ActionLabel="Go to Settings" ActionHref="/settings"
+                        MinHeight="260px" />
+        }
+        else
+        {
+            @* Profile header *@
+            <MudPaper Class="pa-4 mb-4 d-flex align-center gap-4 rounded-xl" Elevation="1"
+                      Style="border-top: 4px solid #1877F2;">
+                @if (_fbProfileLoading)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="56px" Height="56px" />
+                    <div><MudSkeleton Width="140px" Height="24px" Class="mb-1" /><MudSkeleton Width="100px" Height="18px" /></div>
+                }
+                else if (_fbProfile != null)
+                {
+                    <MudAvatar Size="Size.Large">
+                        @if (!string.IsNullOrEmpty(_fbProfile.ProfilePictureUrl))
+                        {
+                            <MudImage Src="@_fbProfile.ProfilePictureUrl" />
+                        }
+                        else
+                        {
+                            @(_fbProfile.Name.FirstOrDefault())
+                        }
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight:600;">@_fbProfile.Name</MudText>
+                        <MudText Typo="Typo.caption" Style="opacity:0.6;">Facebook Account</MudText>
+                    </div>
+                }
+                <MudSpacer />
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadFacebook" Disabled="@_fbProfileLoading">Refresh</MudButton>
+            </MudPaper>
+
+            @* Pages *@
+            @if (_fbPages != null && _fbPages.Any())
+            {
+                <MudPaper Class="pa-4 mb-4 rounded-xl" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600;">Your Pages</MudText>
+                    <MudGrid>
+                        @foreach (var fbPage in _fbPages)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Elevation="1" Class="rounded-xl">
+                                    <MudCardHeader>
+                                        <CardHeaderAvatar>
+                                            <MudAvatar>
+                                                @if (!string.IsNullOrEmpty(fbPage.ProfilePictureUrl))
+                                                {
+                                                    <MudImage Src="@fbPage.ProfilePictureUrl" />
+                                                }
+                                                else
+                                                {
+                                                    @fbPage.Name.FirstOrDefault()
+                                                }
+                                            </MudAvatar>
+                                        </CardHeaderAvatar>
+                                        <CardHeaderContent>
+                                            <MudText Typo="Typo.body1" Style="font-weight:600;">@fbPage.Name</MudText>
+                                            <MudText Typo="Typo.caption" Style="opacity:0.6;">@fbPage.Category</MudText>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent Class="pt-0">
+                                        <div class="d-flex gap-4">
+                                            <div><MudText Typo="Typo.h6" Style="font-weight:700;">@fbPage.FanCount.ToString("N0")</MudText><MudText Typo="Typo.caption" Style="opacity:0.6;">Fans</MudText></div>
+                                            <div><MudText Typo="Typo.h6" Style="font-weight:700;">@fbPage.FollowersCount.ToString("N0")</MudText><MudText Typo="Typo.caption" Style="opacity:0.6;">Followers</MudText></div>
+                                        </div>
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                   OnClick="@(() => LoadFbPagePosts(fbPage.Id, fbPage.Name))">
+                                            View Posts
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            @* Posts *@
+            <MudPaper Class="pa-4 rounded-xl" Elevation="1">
+                <div class="d-flex align-center justify-space-between mb-3">
+                    <MudText Typo="Typo.h6" Style="font-weight:600;">@_fbPostsTitle</MudText>
+                    <div class="d-flex gap-2">
+                        @if (_fbPostsLoading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" /> }
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Person"
+                                   OnClick="LoadFbMyPosts">My Posts</MudButton>
+                    </div>
+                </div>
+                @if (_fbPostsLoading)
+                {
+                    @for (int i = 0; i < 3; i++) { <MudSkeleton Height="48px" Class="mb-2 rounded" /> }
+                }
+                else if (_fbPosts == null || !_fbPosts.Any())
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.PostAdd"
+                                Title="No posts yet"
+                                Message="Your Facebook posts will appear here."
+                                MinHeight="140px" />
+                }
+                else
+                {
+                    <MudGrid>
+                        @foreach (var post in _fbPosts)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Elevation="1" Class="rounded-xl">
+                                    @if (!string.IsNullOrEmpty(post.FullPicture))
+                                    {
+                                        <MudCardMedia Image="@post.FullPicture" Height="160" />
+                                    }
+                                    <MudCardContent>
+                                        <MudText Typo="Typo.body2" Class="mb-2"
+                                                 Style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+                                            @(post.Message ?? post.Story ?? "No content")
+                                        </MudText>
+                                        <div class="d-flex align-center gap-2">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@post.Type</MudChip>
+                                            <MudText Typo="Typo.caption" Style="opacity:0.5;">
+                                                @DateTime.Parse(post.CreatedTime).ToString("MMM d, yyyy")
+                                            </MudText>
+                                        </div>
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                   Href="@post.Permalink" Target="_blank"
+                                                   StartIcon="@Icons.Material.Filled.OpenInNew">
+                                            View
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudPaper>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private int _activeTab = 0;
+
+    // ─── LinkedIn ───
+    private LinkedInProfileDto? _liProfile;
+    private List<ScheduledPostDto> _liScheduledPosts = new();
+    private bool _liProfileLoading;
+    private bool _liPostsLoading;
+
+    // ─── Instagram ───
+    private InstagramUserDto? _igProfile;
+    private InstagramAccountInsightsResponse? _igInsights;
+    private List<InstagramMediaDto> _igPosts = new();
+    private bool _igProfileLoading;
+    private bool _igInsightsLoading;
+    private bool _igPostsLoading;
+
+    // ─── Facebook ───
+    private FacebookUserDto? _fbProfile;
+    private List<FacebookPageDto>? _fbPages;
+    private List<FacebookPostDto>? _fbPosts;
+    private bool _fbProfileLoading;
+    private bool _fbPostsLoading;
+    private string _fbPostsTitle = "My Posts";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(
+            LinkedInState.IsAuthenticated ? Task.CompletedTask : Task.CompletedTask,
+            InstagramState.InitializeAsync(),
+            FacebookState.InitializeAsync()
+        );
+
+        // Load all platforms in parallel
+        var tasks = new List<Task>();
+        if (LinkedInState.IsAuthenticated) tasks.Add(LoadLinkedIn());
+        if (InstagramState.IsAuthenticated) tasks.Add(LoadInstagram());
+        if (FacebookState.IsAuthenticated) tasks.Add(LoadFacebook());
+        await Task.WhenAll(tasks);
+    }
+
+    // ── LinkedIn ──────────────────────────────────────────────
+    private async Task LoadLinkedIn()
+    {
+        _liProfileLoading = true;
+        _liPostsLoading = true;
+        try
+        {
+            var profileReq = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/profile");
+            profileReq.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            var profileResp = await Http.SendAsync(profileReq);
+            if (profileResp.IsSuccessStatusCode)
+                _liProfile = await profileResp.Content.ReadFromJsonAsync<LinkedInProfileDto>();
+
+            _liProfileLoading = false;
+            StateHasChanged();
+
+            var postsReq = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/scheduled");
+            postsReq.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
+            var postsResp = await Http.SendAsync(postsReq);
+            if (postsResp.IsSuccessStatusCode)
+            {
+                var result = await postsResp.Content.ReadFromJsonAsync<List<ScheduledPostDto>>();
+                _liScheduledPosts = result ?? new();
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"LinkedIn load error: {ex.Message}"); }
+        finally { _liProfileLoading = false; _liPostsLoading = false; }
+    }
+
+    // ── Instagram ─────────────────────────────────────────────
+    private async Task LoadInstagram()
+    {
+        _igProfileLoading = true;
+        _igInsightsLoading = true;
+        _igPostsLoading = true;
+
+        await Task.WhenAll(
+            LoadIgProfile(),
+            LoadIgInsights(),
+            LoadIgPosts()
+        );
+    }
+
+    private async Task LoadIgProfile()
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}");
+            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+                _igProfile = await resp.Content.ReadFromJsonAsync<InstagramUserDto>();
+        }
+        catch (Exception ex) { Console.WriteLine($"IG profile error: {ex.Message}"); }
+        finally { _igProfileLoading = false; }
+    }
+
+    private async Task LoadIgInsights()
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/insights/account?userId={InstagramState.UserId}");
+            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+                _igInsights = await resp.Content.ReadFromJsonAsync<InstagramAccountInsightsResponse>();
+        }
+        catch (Exception ex) { Console.WriteLine($"IG insights error: {ex.Message}"); }
+        finally { _igInsightsLoading = false; }
+    }
+
+    private async Task LoadIgPosts()
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, "/api/instagram/media");
+            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+            req.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<InstagramMediaListResponse>();
+                _igPosts = result?.Data ?? new();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed to load Instagram posts: {ex.Message}", Severity.Warning); }
+        finally { _igPostsLoading = false; }
+    }
+
+    private void ShowIgInsights(InstagramMediaDto post)
+    {
+        var parameters = new DialogParameters { ["MediaId"] = post.Id, ["AccessToken"] = InstagramState.AccessToken };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        DialogService.Show<GenPosting.Web.Components.InstagramInsightsDialog>($"Insights: {post.MediaType}", parameters, options);
+    }
+
+    // ── Facebook ──────────────────────────────────────────────
+    private async Task LoadFacebook()
+    {
+        _fbProfileLoading = true;
+        _fbPostsLoading = true;
+
+        await Task.WhenAll(LoadFbProfile(), LoadFbPages());
+        await LoadFbMyPosts();
+    }
+
+    private async Task LoadFbProfile()
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}");
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+                _fbProfile = await resp.Content.ReadFromJsonAsync<FacebookUserDto>();
+        }
+        catch (Exception ex) { Console.WriteLine($"FB profile error: {ex.Message}"); }
+        finally { _fbProfileLoading = false; }
+    }
+
+    private async Task LoadFbPages()
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}");
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<FacebookPageListResponse>();
+                _fbPages = result?.Data;
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"FB pages error: {ex.Message}"); }
+    }
+
+    private async Task LoadFbMyPosts()
+    {
+        _fbPostsLoading = true;
+        _fbPostsTitle = "My Posts";
+        StateHasChanged();
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={FacebookState.UserId}&isPage=false");
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
+                _fbPosts = result?.Data;
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed to load Facebook posts: {ex.Message}", Severity.Warning); }
+        finally { _fbPostsLoading = false; }
+    }
+
+    private async Task LoadFbPagePosts(string pageId, string pageName)
+    {
+        _fbPostsLoading = true;
+        _fbPostsTitle = $"{pageName} Posts";
+        StateHasChanged();
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={pageId}&isPage=true");
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
+                _fbPosts = result?.Data;
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed to load page posts: {ex.Message}", Severity.Warning); }
+        finally { _fbPostsLoading = false; }
+    }
+}

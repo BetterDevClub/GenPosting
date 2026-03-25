@@ -6,6 +6,7 @@
 @inject NavigationManager Nav
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
+@inject IFacebookStateService FacebookState
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
@@ -56,8 +57,11 @@
                                 }
                                 else
                                 {
-                                    <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" />
-                                    <MudText Typo="Typo.body2" Color="Color.Error">Load Failed</MudText>
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+                                    <div>
+                                        <MudText Typo="Typo.body2" Color="Color.Warning">Session expired</MudText>
+                                        <MudLink Href="/settings" Typo="Typo.caption">Reconnect LinkedIn →</MudLink>
+                                    </div>
                                 }
                             }
                             else
@@ -100,14 +104,64 @@
                                 }
                                 else
                                 {
-                                    <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" />
-                                    <MudText Typo="Typo.body2" Color="Color.Error">Load Failed</MudText>
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+                                    <div>
+                                        <MudText Typo="Typo.body2" Color="Color.Warning">Session expired</MudText>
+                                        <MudLink Href="/settings" Typo="Typo.caption">Reconnect Instagram →</MudLink>
+                                    </div>
                                 }
                             }
                             else
                             {
                                 <MudIcon Icon="@Icons.Custom.Brands.Instagram" Color="Color.Default" />
                                 <MudText Typo="Typo.body2">Instagram (Not Connected)</MudText>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Facebook Account -->
+                    <div class="d-flex align-center pa-2 rounded @(_facebookSelected ? "mud-theme-primary-hover" : "")" 
+                         style="border: 1px solid #e0e0e0; cursor: pointer;"
+                         @onclick="@(() => ToggleFacebook(null))">
+                        <MudCheckBox T="bool" Value="@_facebookSelected" ValueChanged="@OnFacebookChanged" Color="Color.Primary" Dense="true" StopClickPropagation="true"/>
+                        <div class="d-flex align-center gap-2 flex-grow-1">
+                            @if (FacebookState.IsAuthenticated)
+                            {
+                                @if (_facebookProfile != null)
+                                {
+                                    <MudAvatar Size="Size.Medium" Style="background-color: #1877F2; color: white;">
+                                        @if (!string.IsNullOrEmpty(_facebookProfile.ProfilePictureUrl))
+                                        {
+                                            <MudImage Src="@_facebookProfile.ProfilePictureUrl" />
+                                        }
+                                        else
+                                        {
+                                            @(_facebookProfile.Name.FirstOrDefault())
+                                        }
+                                    </MudAvatar>
+                                    <div>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@_facebookProfile.Name</MudText>
+                                        <MudText Typo="Typo.caption">Facebook</MudText>
+                                    </div>
+                                }
+                                else if (_loadingProfiles)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                    <MudText Typo="Typo.body2">Facebook (Loading...)</MudText>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+                                    <div>
+                                        <MudText Typo="Typo.body2" Color="Color.Warning">Session expired</MudText>
+                                        <MudLink Href="/settings" Typo="Typo.caption">Reconnect Facebook →</MudLink>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Custom.Brands.Facebook" Color="Color.Default" />
+                                <MudText Typo="Typo.body2">Facebook (Not Connected)</MudText>
                             }
                         </div>
                     </div>
@@ -132,15 +186,41 @@
                 <div class="position-relative">
                     <MudTextField T="string" Label="What do you want to share?" Variant="Variant.Outlined" Lines="6" 
                                   @bind-Value="_postContent" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.EmojiEmotions" 
-                                  Class="mb-4" HelperText="You can use hashtags and mentions"
+                                  Class="mb-1" HelperText="You can use hashtags and mentions"
                                   Immediate="true"
                                   UserAttributes="@(new Dictionary<string, object> { { "id", "post-caption-input" } })"
                                   OnKeyUp="OnCaptionKeyUp" />
+
+                    <!-- Character counter per selected platform -->
+                    <div class="d-flex gap-3 mb-3" style="font-size: 0.75rem; opacity: 0.7;">
+                        @if (_linkedInSelected)
+                        {
+                            var liCount = _postContent?.Length ?? 0;
+                            <span style="color: @(liCount > 3000 ? "#f44336" : liCount > 2700 ? "#FF9800" : "inherit")">
+                                🔵 LinkedIn: @liCount / 3,000
+                            </span>
+                        }
+                        @if (_instagramSelected)
+                        {
+                            var igCount = _postContent?.Length ?? 0;
+                            <span style="color: @(igCount > 2200 ? "#f44336" : igCount > 1980 ? "#FF9800" : "inherit")">
+                                🟣 Instagram: @igCount / 2,200
+                            </span>
+                        }
+                        @if (_facebookSelected)
+                        {
+                            var fbCount = _postContent?.Length ?? 0;
+                            <span style="color: @(fbCount > 63206 ? "#f44336" : fbCount > 56885 ? "#FF9800" : "inherit")">
+                                🔵 Facebook: @fbCount / 63,206
+                            </span>
+                        }
+                    </div>
+
                     
                     <MudPopover Open="@_isMentionsOpen" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" RelativeWidth="DropdownWidth.Relative" Class="z-index-max" MaxHeight="300">
                         <MudList T="string">
                             <MudListSubheader>
-                                Suggested Mentions (Business Accounts)
+                                Suggested Mentions (Friends & Business)
                             </MudListSubheader>
                             @if (_isSearchingMentions)
                             {
@@ -151,7 +231,7 @@
                             else if (!_mentionSuggestions.Any())
                             {
                                 <MudListItem>
-                                    <MudText Typo="Typo.caption">No business accounts found matching "@_currentMentionQuery"</MudText>
+                                    <MudText Typo="Typo.caption">No accounts found matching "@_currentMentionQuery"</MudText>
                                 </MudListItem>
                             }
                             else 
@@ -292,9 +372,27 @@
                             Comments="@_comments"
                         />
                     </MudTabPanel>
+                    <MudTabPanel Text="Facebook" Icon="@Icons.Custom.Brands.Facebook" Disabled="@(!_facebookSelected)">
+                        <div class="pa-3" style="background: #f0f2f5; border-radius: 8px;">
+                            <div class="d-flex align-center gap-2 mb-2">
+                                <MudAvatar Size="Size.Small" Style="background-color: #1877F2; color: white; font-size: 0.75rem;">
+                                    @(_facebookProfile?.Name.FirstOrDefault() ?? 'F')
+                                </MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.2;">@(_facebookProfile?.Name ?? "Your Name")</MudText>
+                                    <MudText Typo="Typo.caption" Style="opacity: 0.6;">Just now · 🌐</MudText>
+                                </div>
+                            </div>
+                            <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">@_postContent</MudText>
+                            @if (_previewImages.Any())
+                            {
+                                <MudImage Src="@_previewImages.First()" Alt="Preview" Class="mt-2" Style="max-width: 100%; border-radius: 4px;" />
+                            }
+                        </div>
+                    </MudTabPanel>
                 </MudTabs>
                 
-                @if (!_linkedInSelected && !_instagramSelected)
+                @if (!_linkedInSelected && !_instagramSelected && !_facebookSelected)
                 {
                     <MudAlert Severity="Severity.Info" Class="mt-4">Select a platform to see the preview.</MudAlert>
                 }
@@ -307,10 +405,12 @@
     private bool _loadingProfiles = true;
     private LinkedInProfileDto? _linkedInProfile;
     private InstagramUserDto? _instagramProfile;
+    private FacebookUserDto? _facebookProfile;
     
     // Selection State
     private bool _linkedInSelected;
     private bool _instagramSelected;
+    private bool _facebookSelected;
     private InstagramPostType _instagramPostType = InstagramPostType.Post;
 
     // Editor State
@@ -325,7 +425,8 @@
     private List<InstagramUserSearchResultDto> _mentionSuggestions = new();
     private string _currentMentionQuery = "";
     private System.Timers.Timer _debounceTimer = new(500) { AutoReset = false };
-    
+    private List<FriendDto> _friends = new(); // Cached friends list
+
     // Follow-up Comments
     private string _newComment = "";
     private List<string> _comments = new();
@@ -337,9 +438,34 @@
 
     private bool _isPosting;
 
+    [SupplyParameterFromQuery(Name = "date")]
+    public string? PresetDate { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _debounceTimer.Elapsed += async (s, e) => await InvokeAsync(SearchMentions);
+
+        // Pre-fill date from query param (e.g. when clicking from Calendar)
+        if (!string.IsNullOrEmpty(PresetDate) && DateTime.TryParse(PresetDate, out var parsedDate))
+        {
+            _scheduledDate = parsedDate;
+            _isScheduled = true;
+        }
+
+        // Initialize all state services so localStorage tokens are loaded
+        await Task.WhenAll(
+            LinkedInState.InitializeAsync(),
+            InstagramState.InitializeAsync(),
+            FacebookState.InitializeAsync()
+        );
+
+        // Load Friends
+        try
+        {
+            _friends = await Http.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
+        }
+        catch {}
+
         await LoadProfiles();
     }
 
@@ -372,6 +498,18 @@
                     _instagramSelected = true; // Auto-select if connected
                 }
             }
+
+            if (FacebookState.IsAuthenticated)
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}");
+                req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+                var res = await Http.SendAsync(req);
+                if (res.IsSuccessStatusCode)
+                {
+                    _facebookProfile = await res.Content.ReadFromJsonAsync<FacebookUserDto>();
+                    _facebookSelected = true; // Auto-select if connected
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -385,12 +523,18 @@
 
     private void OnLinkedInChanged(bool value) => ToggleLinkedIn(value);
     private void OnInstagramChanged(bool value) => ToggleInstagram(value);
+    private void OnFacebookChanged(bool value) => ToggleFacebook(value);
 
     private void ToggleLinkedIn(bool? value = null)
     {
-        if (LinkedInState.IsAuthenticated)
+        if (LinkedInState.IsAuthenticated && _linkedInProfile != null)
         {
              _linkedInSelected = value ?? !_linkedInSelected;
+        }
+        else if (_linkedInProfile == null && LinkedInState.IsAuthenticated)
+        {
+            Snackbar.Add("LinkedIn session expired. Please reconnect in Settings.", Severity.Warning);
+            _linkedInSelected = false;
         }
         else
         {
@@ -401,14 +545,37 @@
 
     private void ToggleInstagram(bool? value = null)
     {
-        if (InstagramState.IsAuthenticated)
+        if (InstagramState.IsAuthenticated && _instagramProfile != null)
         {
              _instagramSelected = value ?? !_instagramSelected;
+        }
+        else if (_instagramProfile == null && InstagramState.IsAuthenticated)
+        {
+            Snackbar.Add("Instagram session expired. Please reconnect in Settings.", Severity.Warning);
+            _instagramSelected = false;
         }
         else
         {
              Snackbar.Add("Connect Instagram first!", Severity.Warning);
              _instagramSelected = false;
+        }
+    }
+
+    private void ToggleFacebook(bool? value = null)
+    {
+        if (FacebookState.IsAuthenticated && _facebookProfile != null)
+        {
+            _facebookSelected = value ?? !_facebookSelected;
+        }
+        else if (_facebookProfile == null && FacebookState.IsAuthenticated)
+        {
+            Snackbar.Add("Facebook session expired. Please reconnect in Settings.", Severity.Warning);
+            _facebookSelected = false;
+        }
+        else
+        {
+            Snackbar.Add("Connect Facebook first!", Severity.Warning);
+            _facebookSelected = false;
         }
     }
 
@@ -468,6 +635,12 @@
             if (_instagramSelected)
             {
                 await PostToInstagram(scheduledDateTime);
+            }
+
+            // 3. Post to Facebook
+            if (_facebookSelected)
+            {
+                await PostToFacebook(scheduledDateTime);
             }
             
             Snackbar.Add("Operation completed!", Severity.Success);
@@ -599,9 +772,29 @@
         }
     }
 
+    private async Task PostToFacebook(DateTime? scheduledAt)
+    {
+        var payload = new
+        {
+            UserId = FacebookState.UserId,
+            Message = _postContent,
+            ScheduledAt = scheduledAt
+        };
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/facebook/post");
+        req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+        req.Content = JsonContent.Create(payload);
+
+        var res = await Http.SendAsync(req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync();
+            throw new Exception($"Facebook Failed: {err}");
+        }
+    }
+
     private async Task OnCaptionKeyUp(KeyboardEventArgs args)
     {
-        if (!_instagramSelected) return;
+        if (!_instagramSelected && !_linkedInSelected) return;
 
         try
         {
@@ -657,23 +850,68 @@
 
         try 
         {
-             var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/users/search?query={_currentMentionQuery}");
-             request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-             request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+             var results = new List<InstagramUserSearchResultDto>();
 
-             var response = await Http.SendAsync(request);
-             if (response.IsSuccessStatusCode)
+             // 1. Search Local Friends First
+             // A. LinkedIn Friends (if LinkedIn selected)
+             if (_linkedInSelected)
              {
-                 _mentionSuggestions = await response.Content.ReadFromJsonAsync<List<InstagramUserSearchResultDto>>() ?? new();
+                 var liFriends = _friends
+                    .Where(f => !string.IsNullOrEmpty(f.LinkedInUrn))
+                    .Where(f => f.Name.Contains(_currentMentionQuery, StringComparison.OrdinalIgnoreCase))
+                    .Select(f => new InstagramUserSearchResultDto(f.Name, "LinkedIn Contact", "", f.LinkedInUrn!));
+                 
+                 results.AddRange(liFriends);
              }
-             else 
+
+             // B. Instagram Friends (if Instagram selected)
+             if (_instagramSelected)
              {
-                 _mentionSuggestions.Clear();
+                 var igFriends = _friends
+                     .Where(f => !string.IsNullOrEmpty(f.InstagramUsername))
+                     .Where(f => f.Name.Contains(_currentMentionQuery, StringComparison.OrdinalIgnoreCase) || 
+                                 f.InstagramUsername!.Contains(_currentMentionQuery, StringComparison.OrdinalIgnoreCase))
+                     .Select(f => new InstagramUserSearchResultDto(f.InstagramUsername!, f.Name, "", f.Id.ToString()));
+                 
+                 // Deduplicate if already added (unlikely as format differs, but good practice)
+                 foreach (var f in igFriends)
+                 {
+                     if (!results.Any(r => r.Id == f.Id && r.Username == f.Username))
+                        results.Add(f);
+                 }
              }
+
+             // 2. Search Instagram Business API
+             if (_instagramSelected && InstagramState.IsAuthenticated)
+             {
+                 var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/users/search?query={_currentMentionQuery}");
+                 request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+                 request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+
+                 var response = await Http.SendAsync(request);
+                 if (response.IsSuccessStatusCode)
+                 {
+                     var apiResults = await response.Content.ReadFromJsonAsync<List<InstagramUserSearchResultDto>>();
+                     if (apiResults != null)
+                     {
+                         // Avoid duplicates if API returns same user as local friend (unlikely but possible if IDs match)
+                         foreach(var r in apiResults)
+                         {
+                             if (!results.Any(existing => existing.Username.Equals(r.Username, StringComparison.OrdinalIgnoreCase)))
+                             {
+                                 results.Add(r);
+                             }
+                         }
+                     }
+                 }
+             }
+
+             _mentionSuggestions = results;
         }
         catch 
         {
-            _mentionSuggestions.Clear();
+             // Fallback to empty
+             _mentionSuggestions = new();
         }
         finally
         {
@@ -685,17 +923,29 @@
     private void SelectMention(InstagramUserSearchResultDto user)
     {
          // Find the last occurrence of the query relative to where we think the caret is/was
-         // Simplified: Replace the last occurrence of @query
-         
          int atIndex = _postContent.LastIndexOf("@" + _currentMentionQuery);
          if (atIndex != -1)
          {
              var before = _postContent.Substring(0, atIndex);
-             // Safety check: ensure string is long enough
              var afterStart = atIndex + 1 + _currentMentionQuery.Length;
              var after = afterStart < _postContent.Length ? _postContent.Substring(afterStart) : "";
              
-             _postContent = $"{before}@{user.Username} {after}";
+             // Determine Mention Format
+             string mentionText;
+             // Check if it's a LinkedIn URN (starts with urn:li:)
+             if (user.Id.StartsWith("urn:li:"))
+             {
+                 // LinkedIn Format: @[Name](URN)
+                 // Note: user.Username holds the Name for LinkedIn contacts based on our search logic
+                 mentionText = $"@[{user.Username}]({user.Id})";
+             }
+             else 
+             {
+                 // Default/Instagram Format: @username
+                 mentionText = $"@{user.Username}";
+             }
+             
+             _postContent = $"{before}{mentionText} {after}";
              _isMentionsOpen = false;
          }
     }

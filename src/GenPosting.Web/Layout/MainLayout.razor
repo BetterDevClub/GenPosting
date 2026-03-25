@@ -1,17 +1,23 @@
 ﻿@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
 
-<MudThemeProvider />
+<MudThemeProvider @ref="_mudThemeProvider" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
 <MudLayout>
     <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h5" Class="ml-3">GenPosting</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Title="Toggle navigation" />
+        <MudText Typo="Typo.h5" Class="ml-2" Style="font-weight: 700; letter-spacing: -0.5px;">GenPosting</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+        <MudTooltip Text="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="ToggleDarkMode" />
+        </MudTooltip>
     </MudAppBar>
-    <MudDrawer Open="true" ClipMode="DrawerClipMode.Always" Elevation="2">
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
         <NavMenu />
     </MudDrawer>
     <MudMainContent>
@@ -20,3 +26,38 @@
         </MudContainer>
     </MudMainContent>
 </MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+    bool _isDarkMode;
+    MudThemeProvider _mudThemeProvider = null!;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var savedDarkMode = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "genposting_darkMode");
+            if (savedDarkMode != null)
+                _isDarkMode = savedDarkMode == "true";
+            else
+                _isDarkMode = await _mudThemeProvider.GetSystemDarkModeAsync();
+
+            var savedDrawer = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "genposting_drawerOpen");
+            _drawerOpen = savedDrawer != "false";
+
+            StateHasChanged();
+        }
+    }
+
+    void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+        _ = JSRuntime.InvokeVoidAsync("localStorage.setItem", "genposting_drawerOpen", _drawerOpen.ToString().ToLower());
+    }
+
+    async Task ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "genposting_darkMode", _isDarkMode.ToString().ToLower());
+    }
+}

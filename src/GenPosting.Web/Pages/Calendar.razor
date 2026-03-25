@@ -5,133 +5,202 @@
 @inject HttpClient Http
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 px-8" Style="height: calc(100vh - 80px); display: flex; flex-direction: column;">
     <!-- Header / Toolbar -->
     <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex align-center gap-4 rounded-xl" Style="background-color: transparent;">
         <MudText Typo="Typo.h4" Style="font-weight: 700;">@GetDateRangeLabel()</MudText>
-        
-        <MudButtonGroup Variant="Variant.Outlined" Class="ml-4 rounded-lg bg-surface">
+
+        <MudButtonGroup Variant="Variant.Outlined" Class="ml-4 rounded-lg">
             <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="Previous" />
             <MudButton OnClick="GoToday" Class="px-6 font-weight-bold">Today</MudButton>
             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="Next" />
         </MudButtonGroup>
-        
+
         <MudSpacer />
 
-        <div class="d-flex align-center gap-2 bg-surface pa-1 rounded-lg border-solid border-1 mud-border-lines-default">
-             <MudIconButton Icon="@Icons.Material.Filled.ViewWeek" 
+        <!-- Status filter chips -->
+        <div class="d-flex gap-2">
+            @foreach (var filter in _statusFilters)
+            {
+                <MudChip T="string" Color="@(filter == _activeFilter ? Color.Primary : Color.Default)"
+                         Variant="@(filter == _activeFilter ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => _activeFilter = filter)"
+                         Size="Size.Small">@filter</MudChip>
+            }
+        </div>
+
+        <div class="d-flex align-center gap-2 pa-1 rounded-lg border-solid border-1 mud-border-lines-default">
+            <MudIconButton Icon="@Icons.Material.Filled.ViewWeek"
                            Color="@(_currentView == CalendarViewType.Week ? Color.Primary : Color.Default)"
-                           OnClick="@(() => _currentView = CalendarViewType.Week)" 
-                           Title="Week View"/>
-             <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth" 
+                           OnClick="@(() => _currentView = CalendarViewType.Week)"
+                           Title="Week View" />
+            <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth"
                            Color="@(_currentView == CalendarViewType.Month ? Color.Primary : Color.Default)"
                            OnClick="@(() => _currentView = CalendarViewType.Month)"
-                           Title="Month View"/>
+                           Title="Month View" />
         </div>
-        
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/create" Class="ml-4 rounded-lg py-2">Create Post</MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Href="/create" Class="ml-2 rounded-lg py-2">Create Post</MudButton>
     </MudPaper>
 
-    <!-- Calendar Content -->
     @if (_loading)
     {
         <div class="d-flex justify-center align-center flex-grow-1">
-             <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
         </div>
     }
     else
     {
         @if (_currentView == CalendarViewType.Week)
         {
+            @if (!_allScheduledPosts.Any())
+            {
+                <EmptyState Icon="@Icons.Material.Filled.CalendarMonth"
+                            Title="No posts scheduled"
+                            Message="Your calendar is empty. Create your first post to get started."
+                            ActionLabel="Create Post"
+                            ActionHref="/create"
+                            MinHeight="400px" />
+            }
+            else
+            {
+            <!-- Week View -->
             <MudPaper Elevation="0" Class="flex-grow-1 d-flex rounded-xl overflow-hidden border-solid border-1 mud-border-lines-default" Style="background-color: var(--mud-palette-background);">
                 <div class="d-flex flex-grow-1" style="height: 100%;">
                     @for (int i = 0; i < 7; i++)
                     {
                         var day = _currentWeekStart.AddDays(i);
                         var isToday = day.Date == DateTime.Today;
-                        var dayPosts = GetPostsForDay(day);
+                        var dayPosts = GetFilteredPostsForDay(day);
                         bool isLast = i == 6;
-                        
-                        <div style="width: 14.28%; display: flex; flex-direction: column; @(isLast ? "" : "border-right: 1px solid var(--mud-palette-lines-default);")" class="@(isToday ? "rgba(var(--mud-palette-primary-rgb), 0.05)" : "")">
-                            
+
+                        <div style="width: 14.28%; display: flex; flex-direction: column; @(isLast ? "" : "border-right: 1px solid var(--mud-palette-lines-default);")"
+                             class="@(isToday ? "" : "")">
+
                             <!-- Column Header -->
-                            <div class="pa-4 pt-6 text-center border-b-1 mud-border-lines-default @(isToday ? "mud-theme-primary-light" : "")" style="@(isToday ? "background-color: rgba(var(--mud-palette-primary-rgb), 0.1);" : "background-color: var(--mud-palette-surface);")">
-                                <MudText Typo="Typo.subtitle2" Color="@(isToday ? Color.Primary : Color.Default)" Class="mb-1" Style="text-transform: uppercase; letter-spacing: 1px;">
+                            <div class="pa-4 pt-6 text-center border-b-1 mud-border-lines-default"
+                                 style="@(isToday ? "background-color: rgba(var(--mud-palette-primary-rgb), 0.1);" : "background-color: var(--mud-palette-surface);")">
+                                <MudText Typo="Typo.subtitle2" Color="@(isToday ? Color.Primary : Color.Default)"
+                                         Class="mb-1" Style="text-transform: uppercase; letter-spacing: 1px;">
                                     @day.ToString("ddd")
                                 </MudText>
                                 <MudText Typo="Typo.h4" Color="@(isToday ? Color.Primary : Color.Default)" Style="font-weight: 700;">
                                     @day.Day
                                 </MudText>
                             </div>
-                            
-                            <!-- Column Body (Posts) -->
-                            <div class="pa-3 flex-grow-1" style="overflow-y: auto; background-color: @(isToday ? "rgba(var(--mud-palette-primary-rgb), 0.02)" : "var(--mud-palette-background-grey)");">
+
+                            <!-- Column Body -->
+                            <div class="pa-2 flex-grow-1" style="overflow-y: auto; background-color: @(isToday ? "rgba(var(--mud-palette-primary-rgb), 0.02)" : "var(--mud-palette-background-grey)");">
                                 @foreach (var post in dayPosts)
                                 {
-                                    <MudPaper Class="pa-3 mb-3 cursor-pointer mud-ripple transition-all hover:elevation-4" 
-                                              Elevation="1" 
+                                    <MudPaper Class="pa-2 mb-2 cursor-pointer rounded-lg"
+                                              Elevation="1"
                                               @onclick="@(() => OpenEditDialog(post))"
-                                              Style="border-radius: 12px; border-left: 4px solid var(--mud-palette-primary);">
-                                        
-                                        <div class="d-flex justify-space-between align-start mb-2">
-                                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                                 <MudAvatar Size="Size.Small" Color="@(post.Platform == SocialPlatform.Instagram ? Color.Secondary : Color.Primary)" Variant="Variant.Filled" Style="font-size: 0.8rem;">
-                                                     <MudIcon Icon="@(post.Platform == SocialPlatform.Instagram ? Icons.Custom.Brands.Instagram : Icons.Custom.Brands.LinkedIn)" Size="Size.Small"/>
-                                                 </MudAvatar>
-                                                 <MudText Typo="Typo.caption" Style="font-weight: 600;">@post.ScheduledTime.ToLocalTime().ToString("HH:mm")</MudText>
-                                             </MudStack>
-                                             @if(post.Status == "Draft") 
-                                             {
-                                                 <MudIcon Icon="@Icons.Material.Filled.EditNote" Size="Size.Small" Color="Color.Warning"/>
-                                             }
+                                              Style="@($"border-left: 4px solid {GetPlatformColor(post.Platform)}; position: relative;")">
+
+                                        <div class="d-flex justify-space-between align-start mb-1">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                <MudAvatar Size="Size.Small" Style="@($"background-color: {GetPlatformColor(post.Platform)}; width: 20px; height: 20px; min-width: 20px;")">
+                                                    <MudIcon Icon="@GetPlatformIcon(post.Platform)" Size="Size.Small" Style="font-size: 0.7rem; color: white;" />
+                                                </MudAvatar>
+                                                <MudText Typo="Typo.caption" Style="font-weight: 600;">@post.ScheduledTime.ToLocalTime().ToString("HH:mm")</MudText>
+                                            </MudStack>
+                                            @GetStatusIndicator(post.Status)
                                         </div>
-                                        
-                                        @if(!string.IsNullOrEmpty(post.ThumbnailUrl))
+
+                                        @if (!string.IsNullOrEmpty(post.ThumbnailUrl))
                                         {
-                                            <MudImage Src="@post.ThumbnailUrl" ObjectFit="ObjectFit.Cover" Style="width: 100%; height: 80px; border-radius: 8px; margin-bottom: 8px;" />
+                                            <MudImage Src="@post.ThumbnailUrl" ObjectFit="ObjectFit.Cover" Style="width: 100%; height: 60px; border-radius: 6px; margin-bottom: 4px;" />
                                         }
 
                                         @if (!string.IsNullOrEmpty(post.Content))
                                         {
-                                            <MudText Typo="Typo.body2" Class="mb-2" Style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">
+                                            <MudText Typo="Typo.caption" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; opacity: 0.85;">
                                                 @post.Content
                                             </MudText>
                                         }
-                                        
-                                        <div class="d-flex gap-2">
-                                            @if (post.MediaUrns != null && post.MediaUrns.Any())
-                                            {
-                                                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Image" Variant="Variant.Text" Color="Color.Primary">Media</MudChip>
-                                            }
-                                            @if (post.Comments != null && post.Comments.Any())
-                                            {
-                                                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Comment" Variant="Variant.Text" Color="Color.Secondary">@post.Comments.Count</MudChip>
-                                            }
-                                        </div>
                                     </MudPaper>
                                 }
-                                
-                                @if (isToday)
-                                {
-                                    <div class="pt-4 d-flex justify-center" style="opacity: 0.0;">
-                                         <!-- Spacer/Indicator for today -->
-                                    </div>
-                                }
+
+                                <!-- Click empty area to create post -->
+                                <div class="d-flex justify-center pa-2" style="opacity: 0;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                   OnClick="@(() => CreatePostOnDate(day))" />
+                                </div>
+                                <div @onclick="@(() => CreatePostOnDate(day))" style="flex-grow: 1; min-height: 40px; cursor: pointer;" title="Click to schedule a post on this day" />
                             </div>
                         </div>
                     }
                 </div>
             </MudPaper>
+            } @* end @if (!_allScheduledPosts.Any()) else *@
         }
-        else // Monthly View (Basic Implementation)
+        else
         {
-             <MudPaper Class="pa-8 d-flex flex-column align-center justify-center rounded-xl border-dashed border-2 mud-border-primary" Style="height: 60vh; background-color: rgba(var(--mud-palette-primary-rgb), 0.05);">
-                 <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Large" Color="Color.Primary" Style="font-size: 4rem;" Class="mb-4" />
-                 <MudText Typo="Typo.h5" GutterBottom="true">Monthly view coming soon</MudText>
-                 <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">We are working on a great monthly overview for your posts.</MudText>
-                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => _currentView = CalendarViewType.Week)">Switch to Weekly View</MudButton>
-             </MudPaper>
+            <!-- Month View -->
+            <MudPaper Elevation="0" Class="flex-grow-1 d-flex flex-column rounded-xl overflow-hidden border-solid border-1 mud-border-lines-default" Style="background-color: var(--mud-palette-background);">
+                <!-- Day of week headers -->
+                <div class="d-flex" style="background-color: var(--mud-palette-surface); border-bottom: 1px solid var(--mud-palette-lines-default);">
+                    @foreach (var dow in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+                    {
+                        <div style="width: 14.28%; padding: 12px 0; text-align: center;">
+                            <MudText Typo="Typo.subtitle2" Style="text-transform: uppercase; letter-spacing: 1px; opacity: 0.7;">@dow</MudText>
+                        </div>
+                    }
+                </div>
+
+                <!-- Calendar grid -->
+                <div class="flex-grow-1" style="display: grid; grid-template-rows: repeat(6, 1fr); overflow: hidden;">
+                    @{
+                        var monthStart = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
+                        var diff = monthStart.DayOfWeek - DayOfWeek.Monday;
+                        if (diff < 0) diff += 7;
+                        var gridStart = monthStart.AddDays(-diff);
+                    }
+                    @for (int row = 0; row < 6; row++)
+                    {
+                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--mud-palette-lines-default);">
+                            @for (int col = 0; col < 7; col++)
+                            {
+                                var cellDate = gridStart.AddDays(row * 7 + col);
+                                var isCurrentMonth = cellDate.Month == _selectedDate.Month;
+                                var isCellToday = cellDate.Date == DateTime.Today;
+                                var cellPosts = GetFilteredPostsForDay(cellDate);
+                                var showPosts = cellPosts.Take(3).ToList();
+                                var overflow = cellPosts.Count - 3;
+
+                                <div @onclick="@(() => CreatePostOnDate(cellDate))"
+                                     style="border-right: 1px solid var(--mud-palette-lines-default); padding: 6px; cursor: pointer; overflow: hidden; @(col == 6 ? "border-right: none;" : "") @(!isCurrentMonth ? "opacity: 0.4;" : "")">
+                                    <div class="d-flex align-center justify-center mb-1"
+                                         style="@(isCellToday ? $"background-color: var(--mud-palette-primary); color: white; border-radius: 50%; width: 28px; height: 28px; margin: 0 auto 4px auto;" : "width: 28px; height: 28px; margin: 0 auto 4px auto;")">
+                                        <MudText Typo="Typo.body2" Style="@($"font-weight: {(isCellToday ? "700" : "400")}; font-size: 0.8rem;")">
+                                            @cellDate.Day
+                                        </MudText>
+                                    </div>
+
+                                    @foreach (var post in showPosts)
+                                    {
+                                        <div @onclick:stopPropagation="true"
+                                             @onclick="@(() => OpenEditDialog(post))"
+                                             style="@($"background-color: {GetPlatformColor(post.Platform)}; color: white; border-radius: 4px; padding: 1px 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.7rem; cursor: pointer;")"
+                                             title="@post.Content">
+                                            @GetPlatformIcon(post.Platform) @post.ScheduledTime.ToLocalTime().ToString("HH:mm") @(string.IsNullOrEmpty(post.Content) ? "[media]" : post.Content)
+                                        </div>
+                                    }
+
+                                    @if (overflow > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Primary" Style="font-size: 0.7rem; font-weight: 600;">+@overflow more</MudText>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </MudPaper>
         }
     }
 
@@ -140,10 +209,13 @@
 @code {
     private List<ScheduledPostDto> _allScheduledPosts = new();
     private bool _loading = true;
-    
+
     private DateTime _selectedDate = DateTime.Today;
     private DateTime _currentWeekStart;
     private CalendarViewType _currentView = CalendarViewType.Week;
+
+    private readonly string[] _statusFilters = { "All", "Pending", "Published", "Failed" };
+    private string _activeFilter = "All";
 
     public enum CalendarViewType { Week, Month }
 
@@ -177,10 +249,11 @@
         }
     }
 
-    private List<ScheduledPostDto> GetPostsForDay(DateTime day)
+    private List<ScheduledPostDto> GetFilteredPostsForDay(DateTime day)
     {
         return _allScheduledPosts
-            .Where(p => p.ScheduledTime.ToLocalTime().Date == day.Date)
+            .Where(p => p.ScheduledTime.ToLocalTime().Date == day.Date &&
+                        (_activeFilter == "All" || p.Status == _activeFilter))
             .OrderBy(p => p.ScheduledTime)
             .ToList();
     }
@@ -191,30 +264,25 @@
         {
             var end = _currentWeekStart.AddDays(6);
             if (_currentWeekStart.Month == end.Month)
-                return $"{_currentWeekStart.Day} - {end.Day} {end.ToString("MMM")}";
-            else
-                return $"{_currentWeekStart.ToString("d MMM")} - {end.ToString("d MMM")}";
+                return $"{_currentWeekStart.Day} – {end.Day} {end:MMM}";
+            return $"{_currentWeekStart:d MMM} – {end:d MMM}";
         }
         return _selectedDate.ToString("MMMM yyyy");
     }
 
     private void Previous()
     {
-        if (_currentView == CalendarViewType.Week)
-            _selectedDate = _selectedDate.AddDays(-7);
-        else
-            _selectedDate = _selectedDate.AddMonths(-1);
-            
+        _selectedDate = _currentView == CalendarViewType.Week
+            ? _selectedDate.AddDays(-7)
+            : _selectedDate.AddMonths(-1);
         CalculateWeekStart();
     }
 
     private void Next()
     {
-        if (_currentView == CalendarViewType.Week)
-            _selectedDate = _selectedDate.AddDays(7);
-        else
-            _selectedDate = _selectedDate.AddMonths(1);
-
+        _selectedDate = _currentView == CalendarViewType.Week
+            ? _selectedDate.AddDays(7)
+            : _selectedDate.AddMonths(1);
         CalculateWeekStart();
     }
 
@@ -224,7 +292,11 @@
         CalculateWeekStart();
     }
 
-    // Logic copied and adapted from LinkedIn.razor for reuse
+    private void CreatePostOnDate(DateTime date)
+    {
+        Nav.NavigateTo($"/create?date={date:yyyy-MM-dd}");
+    }
+
     private async Task OpenEditDialog(ScheduledPostDto post)
     {
         var parameters = new DialogParameters<GenPosting.Web.Components.EditScheduledPostDialog> { { x => x.Post, post } };
@@ -235,13 +307,13 @@
         {
             if (result.Data is string s && s == "DELETE")
             {
-                 var delRes = await Http.DeleteAsync($"/api/linkedin/scheduled/{post.Id}");
-                 if (delRes.IsSuccessStatusCode) 
-                 {
-                     Snackbar.Add("Post deleted", Severity.Success);
-                     await LoadScheduledPosts();
-                 }
-                 else Snackbar.Add("Failed to delete", Severity.Error);
+                var delRes = await Http.DeleteAsync($"/api/linkedin/scheduled/{post.Id}");
+                if (delRes.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Post deleted", Severity.Success);
+                    await LoadScheduledPosts();
+                }
+                else Snackbar.Add("Failed to delete", Severity.Error);
             }
             else if (result.Data is ScheduledPostDto updated)
             {
@@ -266,4 +338,27 @@
             }
         }
     }
+
+    private static string GetPlatformColor(SocialPlatform p) => p switch
+    {
+        SocialPlatform.LinkedIn => "#0A66C2",
+        SocialPlatform.Instagram => "#E1306C",
+        SocialPlatform.Facebook => "#1877F2",
+        _ => "#757575"
+    };
+
+    private static string GetPlatformIcon(SocialPlatform p) => p switch
+    {
+        SocialPlatform.LinkedIn => Icons.Custom.Brands.LinkedIn,
+        SocialPlatform.Instagram => Icons.Custom.Brands.Instagram,
+        SocialPlatform.Facebook => Icons.Custom.Brands.Facebook,
+        _ => Icons.Material.Filled.Public
+    };
+
+    private static RenderFragment GetStatusIndicator(string status) => status switch
+    {
+        "Published" => @<MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="color: #4CAF50; font-size: 0.9rem;" />,
+        "Failed" => @<MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Style="color: #f44336; font-size: 0.9rem;" />,
+        _ => @<span />,
+    };
 }

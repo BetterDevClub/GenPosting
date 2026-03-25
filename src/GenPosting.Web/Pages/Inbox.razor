@@ -1,0 +1,363 @@
+@page "/inbox"
+@using GenPosting.Web.Services
+@using GenPosting.Shared.DTOs
+@inject IInstagramStateService InstagramState
+@inject IFacebookStateService FacebookState
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Inbox – GenPosting</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-1" Style="font-weight: 700;">Inbox</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="opacity: 0.6;">All comments from your connected platforms in one place.</MudText>
+
+@* Toolbar *@
+<div class="d-flex align-center gap-3 mb-4 flex-wrap">
+    <MudChipSet T="string" @bind-SelectedValue="_platformFilter" SelectionMode="SelectionMode.SingleSelection" CheckMark="false">
+        <MudChip Value="@("All")" Color="Color.Primary" Variant="Variant.Filled" Default="true" OnClick="@(() => SetFilter("All"))">All</MudChip>
+        <MudChip Value="@("Instagram")" Variant="Variant.Outlined" OnClick="@(() => SetFilter("Instagram"))">
+            <MudIcon Icon="@Icons.Custom.Brands.Instagram" Size="Size.Small" Class="mr-1" />Instagram
+        </MudChip>
+        <MudChip Value="@("Facebook")" Variant="Variant.Outlined" OnClick="@(() => SetFilter("Facebook"))">
+            <MudIcon Icon="@Icons.Custom.Brands.Facebook" Size="Size.Small" Class="mr-1" />Facebook
+        </MudChip>
+    </MudChipSet>
+
+    <MudSpacer />
+
+    <MudText Typo="Typo.caption" Style="opacity: 0.5;">
+        @(_filteredComments.Count) comment@(_filteredComments.Count == 1 ? "" : "s")
+    </MudText>
+
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Disabled="@_isLoading"
+                   OnClick="LoadAllComments"
+                   Title="Refresh inbox" />
+</div>
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center align-center" style="min-height: 200px;">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (!InstagramState.IsAuthenticated && !FacebookState.IsAuthenticated)
+{
+    <EmptyState Icon="@Icons.Material.Filled.Inbox"
+                Title="No platforms connected"
+                Message="Connect Instagram or Facebook in Settings to see your comments here."
+                ActionLabel="Go to Settings"
+                ActionHref="/settings"
+                MinHeight="300px" />
+}
+else if (!_filteredComments.Any())
+{
+    <EmptyState Icon="@Icons.Material.Filled.CheckCircleOutline"
+                Title="You're all caught up!"
+                Message="No comments found for the selected platform."
+                MinHeight="300px" />
+}
+else
+{
+    <MudPaper Elevation="0" Class="rounded-xl overflow-hidden border-solid border-1 mud-border-lines-default">
+        @foreach (var (comment, index) in _filteredComments.Select((c, i) => (c, i)))
+        {
+            @if (index > 0)
+            {
+                <MudDivider />
+            }
+            <div class="pa-4">
+                <div class="d-flex align-start gap-3">
+                    @* Platform badge + author avatar *@
+                    <MudAvatar Style="@($"background-color: {GetPlatformColor(comment.Platform)}; min-width: 40px; width: 40px; height: 40px;")">
+                        <MudIcon Icon="@GetPlatformIcon(comment.Platform)" Style="color: white; font-size: 1.1rem;" />
+                    </MudAvatar>
+
+                    <div class="flex-grow-1">
+                        @* Header row *@
+                        <div class="d-flex align-center gap-2 mb-1 flex-wrap">
+                            <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@comment.Author</MudText>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                     Style="@($"color: {GetPlatformColor(comment.Platform)}; font-size: 0.7rem; height: 20px;")">
+                                @comment.Platform
+                            </MudChip>
+                            <MudSpacer />
+                            <MudText Typo="Typo.caption" Style="opacity: 0.5;">@FormatTimestamp(comment.Timestamp)</MudText>
+                        </div>
+
+                        @* Comment text *@
+                        <MudText Typo="Typo.body2" Class="mb-2">@comment.Text</MudText>
+
+                        @* Post reference *@
+                        @if (!string.IsNullOrEmpty(comment.PostSnippet))
+                        {
+                            <div class="d-flex align-center gap-1 mb-2">
+                                <MudIcon Icon="@Icons.Material.Outlined.Reply" Size="Size.Small" Style="opacity: 0.4; transform: scaleX(-1);" />
+                                <MudText Typo="Typo.caption" Style="opacity: 0.5; font-style: italic;">
+                                    On: @comment.PostSnippet
+                                </MudText>
+                            </div>
+                        }
+
+                        @* Actions *@
+                        <div class="d-flex align-center gap-1">
+                            @if (comment.LikeCount > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Favorite"
+                                         Variant="Variant.Text" Style="height: 24px; font-size: 0.75rem; opacity: 0.7;">
+                                    @comment.LikeCount
+                                </MudChip>
+                            }
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Reply"
+                                       OnClick="@(() => ToggleReply(comment.Id))">Reply</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       Href="@GetPlatformPageHref(comment.Platform)"
+                                       StartIcon="@Icons.Material.Outlined.OpenInNew">View</MudButton>
+                        </div>
+
+                        @* Inline reply box *@
+                        @if (_replyOpenIds.Contains(comment.Id))
+                        {
+                            <div class="mt-2 d-flex gap-2 align-center">
+                                <MudTextField @bind-Value="_replyTexts[comment.Id]"
+                                              Placeholder="Write a reply…"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              FullWidth="true"
+                                              Immediate="true" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                               Color="Color.Primary"
+                                               Disabled="@(!_replyTexts.TryGetValue(comment.Id, out var t) || string.IsNullOrWhiteSpace(t) || _sendingReply == comment.Id)"
+                                               OnClick="@(() => SendReply(comment))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                               OnClick="@(() => CloseReply(comment.Id))" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    private record InboxComment(
+        string Id,
+        string Platform,
+        string Author,
+        string Text,
+        string Timestamp,
+        int LikeCount,
+        string? PostSnippet,
+        string? PostId
+    );
+
+    private List<InboxComment> _allComments = new();
+    private List<InboxComment> _filteredComments = new();
+    private bool _isLoading = true;
+    private string? _platformFilter = "All";
+
+    // Re-apply filter whenever chip selection changes
+    protected override void OnParametersSet() => ApplyFilter();
+
+    private void SetFilter(string filter)
+    {
+        _platformFilter = filter;
+        ApplyFilter();
+    }
+
+    private HashSet<string> _replyOpenIds = new();
+    private Dictionary<string, string> _replyTexts = new();
+    private string? _sendingReply;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InstagramState.InitializeAsync();
+        await FacebookState.InitializeAsync();
+        await LoadAllComments();
+    }
+
+    private async Task LoadAllComments()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        _allComments.Clear();
+        var tasks = new List<Task>();
+
+        if (InstagramState.IsAuthenticated)
+            tasks.Add(LoadInstagramComments());
+        if (FacebookState.IsAuthenticated)
+            tasks.Add(LoadFacebookComments());
+
+        await Task.WhenAll(tasks);
+
+        _allComments = _allComments
+            .OrderByDescending(c => ParseTimestamp(c.Timestamp))
+            .ToList();
+
+        ApplyFilter();
+        _isLoading = false;
+    }
+
+    private async Task LoadInstagramComments()
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/instagram/comments/recent");
+            request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+            request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<InstagramCommentListResponse>();
+                if (result?.Data != null)
+                {
+                    _allComments.AddRange(result.Data.Select(c => new InboxComment(
+                        c.Id, "Instagram", $"@{c.Username}", c.Text, c.Timestamp,
+                        c.LikeCount, null, c.MediaId)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not load Instagram comments: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private async Task LoadFacebookComments()
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"/api/facebook/comments/recent?targetId={FacebookState.UserId}&isPage=false");
+            request.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<FacebookCommentListResponse>();
+                if (result?.Data != null)
+                {
+                    _allComments.AddRange(result.Data.Select(c => new InboxComment(
+                        c.Id, "Facebook", c.From, c.Message, c.CreatedTime,
+                        c.LikeCount, null, c.PostId)));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not load Facebook comments: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        _filteredComments = _platformFilter == "All"
+            ? _allComments.ToList()
+            : _allComments.Where(c => c.Platform == _platformFilter).ToList();
+    }
+
+    private string GetPlatformColor(string platform) => platform switch
+    {
+        "Instagram" => "#E1306C",
+        "Facebook"  => "#1877F2",
+        "LinkedIn"  => "#0A66C2",
+        _           => "#808080"
+    };
+
+    private string GetPlatformIcon(string platform) => platform switch
+    {
+        "Instagram" => Icons.Custom.Brands.Instagram,
+        "Facebook"  => Icons.Custom.Brands.Facebook,
+        "LinkedIn"  => Icons.Custom.Brands.LinkedIn,
+        _           => Icons.Material.Filled.Chat
+    };
+
+    private string GetPlatformPageHref(string platform) => platform switch
+    {
+        "Instagram" => "/instagram",
+        "Facebook"  => "/facebook",
+        "LinkedIn"  => "/linkedin",
+        _           => "/"
+    };
+
+    private string FormatTimestamp(string raw)
+    {
+        if (DateTime.TryParse(raw, out var dt))
+        {
+            var diff = DateTime.UtcNow - dt.ToUniversalTime();
+            if (diff.TotalMinutes < 1) return "just now";
+            if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+            if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+            if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+            return dt.ToString("MMM d");
+        }
+        return raw;
+    }
+
+    private DateTime ParseTimestamp(string raw) =>
+        DateTime.TryParse(raw, out var dt) ? dt : DateTime.MinValue;
+
+    private void ToggleReply(string id)
+    {
+        if (_replyOpenIds.Contains(id)) _replyOpenIds.Remove(id);
+        else { _replyOpenIds.Add(id); _replyTexts.TryAdd(id, string.Empty); }
+    }
+
+    private void CloseReply(string id)
+    {
+        _replyOpenIds.Remove(id);
+        _replyTexts.Remove(id);
+    }
+
+    private async Task SendReply(InboxComment comment)
+    {
+        if (!_replyTexts.TryGetValue(comment.Id, out var text) || string.IsNullOrWhiteSpace(text))
+            return;
+
+        _sendingReply = comment.Id;
+        StateHasChanged();
+
+        try
+        {
+            bool success = false;
+            if (comment.Platform == "Instagram")
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post,
+                    $"/api/instagram/comments/{comment.Id}/reply");
+                req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
+                req.Content = JsonContent.Create(new ReplyToCommentRequest(text));
+                var resp = await Http.SendAsync(req);
+                success = resp.IsSuccessStatusCode;
+            }
+            else if (comment.Platform == "Facebook")
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post,
+                    $"/api/facebook/comments/{comment.Id}/reply");
+                req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+                req.Content = JsonContent.Create(new ReplyToFacebookCommentRequest(text));
+                var resp = await Http.SendAsync(req);
+                success = resp.IsSuccessStatusCode;
+            }
+
+            if (success)
+            {
+                Snackbar.Add("Reply sent!", Severity.Success);
+                CloseReply(comment.Id);
+            }
+            else
+            {
+                Snackbar.Add("Failed to send reply.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _sendingReply = null;
+        }
+    }
+}

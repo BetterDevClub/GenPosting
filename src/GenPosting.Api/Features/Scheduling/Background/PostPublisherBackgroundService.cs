@@ -44,6 +44,7 @@ public class PostPublisherBackgroundService : BackgroundService
         var scheduledService = scope.ServiceProvider.GetRequiredService<IScheduledPostService>();
         var linkedInService = scope.ServiceProvider.GetRequiredService<ILinkedInService>();
         var instagramService = scope.ServiceProvider.GetRequiredService<IInstagramService>();
+        var facebookService = scope.ServiceProvider.GetRequiredService<GenPosting.Api.Features.Facebook.Services.IFacebookService>();
 
         var duePosts = await scheduledService.GetDuePostsAsync();
 
@@ -70,7 +71,6 @@ public class PostPublisherBackgroundService : BackgroundService
                     }
                     else
                     {
-                        // Default to Post if not specified, though it should be set
                         var igType = post.IgPostType ?? InstagramPostType.Post;
                         
                         var result = await instagramService.PublishPostWithUrlAsync(
@@ -84,6 +84,25 @@ public class PostPublisherBackgroundService : BackgroundService
                         error = result.Error;
                         publishedId = result.PublishedId;
                     }
+                }
+                else if (post.Platform == SocialPlatform.Facebook)
+                {
+                    // Facebook Publishing Logic
+                    var fbType = post.FbPostType ?? FacebookPostType.Text;
+                    var fbTarget = post.FbTarget ?? FacebookPostTarget.Profile;
+                    var mediaUrl = post.MediaUrns?.FirstOrDefault() ?? string.Empty;
+
+                    var result = await facebookService.PublishPostWithUrlAsync(
+                        post.AccessToken,
+                        post.Content,
+                        fbType,
+                        mediaUrl,
+                        fbTarget,
+                        post.FbTargetId
+                    );
+                    success = result.Success;
+                    error = result.Error;
+                    publishedId = result.PublishedId;
                 }
                 else
                 {
@@ -106,7 +125,7 @@ public class PostPublisherBackgroundService : BackgroundService
                     continue; 
                 }
 
-                // Handle Comments (Unified for both platforms)
+                // Handle Comments (Unified for all platforms)
                 if (!string.IsNullOrEmpty(publishedId) && post.Comments != null && post.Comments.Any())
                 {
                     foreach (var comment in post.Comments)
@@ -121,8 +140,8 @@ public class PostPublisherBackgroundService : BackgroundService
                             {
                                 await linkedInService.AddCommentAsync(post.AccessToken, publishedId, comment);
                             }
+                            // Note: Facebook comments on posts require different API - not implementing here
                             
-                            // Small delay to ensure order and avoid rate limits
                             await Task.Delay(500, stoppingToken);
                         }
                     }

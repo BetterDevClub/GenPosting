@@ -1,65 +1,90 @@
 # GitHub Copilot Instructions for GenPosting
 
-## 🧠 Role & Persona
-You are an expert .NET/C# developer assisting with the "GenPosting" project. Your code is idiomatic, performant, and maintainable. You prefer modern C# features and clean architecture patterns.
-GenPosting project is a platform built in .NET 10 using Minimal APIs (Carter) for the backend and Blazor WebAssembly (MudBlazor) for the frontend. It's purpose is to facilitate content posting and management social media. It's main functionalities include posting/scheduling different types of content, managing users social media accounts and analytics.
+GenPosting is a .NET 10 social media content scheduling and publishing platform. The backend uses Minimal APIs (Carter) with vertical slices architecture; the frontend is Blazor WebAssembly with MudBlazor.
 
-## 🏗 Project Architecture & Overview
-*Note: This project is in initial stages. As structure evolves, update this section.*
+## Architecture
 
-- **Backend Tech Stack**: .NET 9 Web API (Minimal APIs) in `GenPosting.Api`.
-- **Frontend Tech Stack**: Blazor WebAssembly using **MudBlazor** in `GenPosting.Web`.
-- **Shared Library**: `GenPosting.Shared` for DTOs and contracts shared between API and Web.
-- **Architecture**: **Vertical Slices Architecture**.
-    - Backend: Implemented using **Carter**. Organize code by feature in `Features/<FeatureName>` (e.g., `Features/home/HomeModule.cs`).
-    - Frontend: MudBlazor components.
-- **Project Structure**:
-    - `src/`
-        - `GenPosting.Api/`: Backend Minimal API.
-        - `GenPosting.Web/`: Blazor WebAssembly Frontend.
-        - `GenPosting.Shared/`: Shared DTOs/Contracts.
-    - `tests/`: Unit and Integration tests.
+Three projects under `src/`:
+- **`GenPosting.Api`** – ASP.NET Core Minimal API. Features live in `Features/<PlatformOrDomain>/`. Each feature has a `*Module.cs` (Carter), `Services/`, and `Models/`.
+- **`GenPosting.Web`** – Blazor WebAssembly. Pages in `Pages/`, reusable UI in `Components/`, per-platform state in `Services/*StateService.cs`.
+- **`GenPosting.Shared`** – DTOs (as `record` types) and enums shared between API and Web.
 
-## 🛠 Development Environment
-- **API Port**: `https://localhost:7098` (HTTPS) / `http://localhost:5125` (HTTP)
-- **Web Port**: `https://localhost:7205` (HTTPS) / `http://localhost:5013` (HTTP)
-- **Configuration**: Frontend `appsettings.Development.json` contains `ApiBaseUrl` pointing to the API.
+Supported social platforms: `LinkedIn`, `Instagram`, `Facebook` (see `SocialPlatform` enum).
 
-## 📝 Coding Standards
-- **Style**: Follow Microsoft's C# Coding Standards.
-- **Nullability**: Enable nullable reference types (`<Nullable>enable</Nullable>`) and handle potential nulls explicitly.
-- **Async/Await**: Use `async` all the way down. Avoid `.Result` or `.Wait()`. Always pass `CancellationToken`.
-- **Formatting**: Use file-scoped namespaces to reduce nesting.
-    ```csharp
-    namespace GenPosting.Services; // Preferred
-    ```
-- **Records**: Use `record` for DTOs and immutable data structures.
-    ```csharp
-    public record CreatePostRequest(string Title, string Content);
-    ```
-- **Minimal API (Carter)**:
-    - Use `ICarterModule` to define routes in `AddRoutes` method.
-    - Organize endpoints by feature (e.g., `Features/Home/HomeModule.cs`).
-    - Validate inputs using `FluentValidation`.
-- **Blazor & MudBlazor**:
-    - Prefer MudBlazor components (`<MudButton>`, `<MudTextField>`) over native HTML.
-    - Isolate UI logic in `.razor.cs` partial classes if complex.
+## Key Patterns
 
-## 🧪 Testing Strategy
-- **Framework**: (To be determined, likely xUnit or NUnit).
-- **Pattern**: Arrange-Act-Assert (AAA).
-- **Requirement**: Write unit tests for all new business logic.
+### Carter Modules (API)
+Each feature implements `ICarterModule` and groups its routes:
+```csharp
+public class FacebookModule : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/facebook").WithTags("Facebook");
+        group.MapGet("/profile", async (...) => { ... });
+    }
+}
+```
+`app.MapCarter()` in `Program.cs` auto-discovers all modules.
 
-## 📦 Dependencies & Management
-- Use NuGet for package management.
-- Prefer `Microsoft.Extensions.*` for DI, Logging, and Configuration.
+### Auth Token Passing
+Social platform tokens are **not** stored server-side. The frontend persists them in `localStorage` (via `IJSRuntime`) and passes them per-request using platform-specific headers:
+- `X-Facebook-Token` / `X-Facebook-UserId`
+- `X-Instagram-Token` / `X-Instagram-UserId`  
+- LinkedIn uses Bearer tokens in standard `Authorization` header
 
-## 🔍 Workflows
-- **Build**: `dotnet build`
-- **Test**: `dotnet test`
-- **Run**: `dotnet run`
+Each platform has a corresponding `*StateService` in `GenPosting.Web/Services/` that manages this.
 
-## 🚀 AI Agent Behaviors
-- **Context Awareness**: Before answering, check the file structure to understand context.
-- **Conciseness**: Provide code solutions with minimal chatter. Explain complex logic if necessary.
-- **Safety**: Do not hardcode secrets/keys. Use `appsettings.json` or Environment Variables patterns.
+### Platform Configuration (API)
+Platform OAuth credentials live in `appsettings.json` under named sections and are bound with `IOptions<T>`:
+```json
+{ "LinkedIn": { "ClientId": "", "ClientSecret": "", "Scope": "..." } }
+```
+```csharp
+builder.Services.Configure<LinkedInSettings>(builder.Configuration.GetSection("LinkedIn"));
+```
+**Never hardcode credentials.** Use `appsettings.Development.json` or environment variables locally.
+
+### Scheduling Flow
+When a post has a `scheduledFor` value:
+1. If media is attached, upload it to Azure Blob Storage first to get a URL.
+2. Store a `ScheduledPost` via `IScheduledPostService` (currently in-memory).
+3. `PostPublisherBackgroundService` polls every 30 seconds, publishes due posts, and marks them published/failed.
+
+Immediate posts skip scheduling and call the platform service directly.
+
+### In-Memory Implementations
+`InMemoryScheduledPostService` and `InMemoryFriendService` are dev-only placeholders registered as `Singleton`. Replace with persistent implementations for production.
+
+### Shared DTOs
+All DTOs in `GenPosting.Shared` are positional `record` types:
+```csharp
+public record ScheduledPostDto(Guid Id, SocialPlatform Platform, string Content, ...);
+```
+
+### MudBlazor UI
+Use MudBlazor components exclusively (`<MudButton>`, `<MudTextField>`, `<MudDialog>`, etc.). Complex dialog logic lives in `Components/` (e.g., `EditScheduledPostDialog.razor`).
+
+## Development Environment
+
+- **API**: `https://localhost:7098` / `http://localhost:5125`
+- **Web**: `https://localhost:7205` / `http://localhost:5013`
+- **API docs**: Scalar UI at `/scalar/v1` (dev only)
+- Frontend reads `ApiBaseUrl` from `wwwroot/appsettings.Development.json`
+
+## Commands
+
+```bash
+dotnet build          # Build entire solution
+dotnet run            # Run from a project directory
+dotnet test           # Run all tests
+```
+
+## Coding Standards
+
+- Target **C# 14** / **.NET 10**; use file-scoped namespaces.
+- Nullable reference types are enabled — use `is null` / `is not null`, not `== null`.
+- `async`/`await` all the way down; always propagate `CancellationToken`.
+- Use `nameof()` instead of string literals for member references.
+- XML doc comments on all public APIs.
+- Test pattern: Arrange-Act-Assert (no AAA comments in code). Use xUnit + Moq/NSubstitute.

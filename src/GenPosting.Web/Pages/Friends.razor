@@ -1,0 +1,166 @@
+@page "/friends"
+@using GenPosting.Shared.DTOs
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Friends List - GenPosting</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Friends List</MudText>
+    <MudText Typo="Typo.body1" Class="mb-6">Manage your contacts for quick mentions in posts.</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4" Elevation="3">
+                <MudText Typo="Typo.h6" Class="mb-4">Add New Friend</MudText>
+                <MudForm @ref="_form" @bind-IsValid="_isValid">
+                    <MudTextField T="string" Label="Name" @bind-Value="_newFriend.Name" Required="true" RequiredError="Name is required" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField T="string" Label="Instagram Username" @bind-Value="_newFriend.InstagramUsername" HelperText="e.g. valid_username" Variant="Variant.Outlined" Class="mb-3" Adornment="Adornment.Start" AdornmentText="@("@")" />
+                    <MudTextField T="string" Label="LinkedIn Profile URN" @bind-Value="_newFriend.LinkedInUrn" HelperText="e.g. urn:li:person:..." Variant="Variant.Outlined" Class="mb-3" />
+                    
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddFriend" Disabled="@(!_isValid)" FullWidth="true" Class="mt-4">Save Friend</MudButton>
+                </MudForm>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="8">
+            <MudTable Items="@_friends" Hover="true" Loading="@_loading" Elevation="3">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Instagram</MudTh>
+                    <MudTh>LinkedIn</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">
+                        <MudText Typo="Typo.subtitle2">@context.Name</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Instagram">
+                        @if (!string.IsNullOrEmpty(context.InstagramUsername))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" Icon="@Icons.Custom.Brands.Instagram">@context.InstagramUsername</MudChip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Default">-</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="LinkedIn">
+                         @if (!string.IsNullOrEmpty(context.LinkedInUrn))
+                        {
+                            <MudTooltip Text="@context.LinkedInUrn">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Icon="@Icons.Custom.Brands.LinkedIn">Linked</MudChip>
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Default">-</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteFriend(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                     <MudText Typo="Typo.body2" Align="Align.Center" Class="pa-4">No friends added yet.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<FriendDto> _friends = new();
+    private FriendDto _newFriend = new();
+    private bool _loading = true;
+    private MudForm _form = null!;
+    private bool _isValid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFriends();
+    }
+
+    private async Task LoadFriends()
+    {
+        _loading = true;
+        try
+        {
+            _friends = await Http.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load friends: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddFriend()
+    {
+        await _form.Validate();
+        if (!_isValid) return;
+
+        // Auto-fix LinkedIn Prefix if user pasted web URN
+        if (!string.IsNullOrWhiteSpace(_newFriend.LinkedInUrn))
+        {
+             if (_newFriend.LinkedInUrn.Contains("fsd_profile"))
+             {
+                 _newFriend.LinkedInUrn = _newFriend.LinkedInUrn.Replace("fsd_profile", "person");
+             }
+             else if (!_newFriend.LinkedInUrn.StartsWith("urn:li:person") && _newFriend.LinkedInUrn.Length > 20)
+             {
+                 // Assume raw ID
+                 if (!_newFriend.LinkedInUrn.Contains(":"))
+                 {
+                      _newFriend.LinkedInUrn = $"urn:li:person:{_newFriend.LinkedInUrn}";
+                 }
+             }
+        }
+
+        // Clean Instagram
+        if (!string.IsNullOrWhiteSpace(_newFriend.InstagramUsername))
+        {
+            _newFriend.InstagramUsername = _newFriend.InstagramUsername.TrimStart('@');
+        }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/friends", _newFriend);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Friend added!", Severity.Success);
+                _newFriend = new(); // reset
+                await _form.ResetAsync();
+                await LoadFriends();
+            }
+            else
+            {
+                Snackbar.Add("Failed to add friend", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteFriend(FriendDto friend)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"/api/friends/{friend.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Friend deleted", Severity.Success);
+                await LoadFriends();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+}

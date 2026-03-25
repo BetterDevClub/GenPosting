@@ -1,53 +1,244 @@
 ﻿@page "/"
+@using GenPosting.Shared.DTOs
+@using GenPosting.Shared.Enums
+@using GenPosting.Web.Services
 @inject HttpClient Http
+@inject ILinkedInStateService LinkedInState
+@inject IInstagramStateService InstagramState
+@inject IFacebookStateService FacebookState
 
-<PageTitle>GenPosting Home</PageTitle>
+<PageTitle>Dashboard - GenPosting</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">GenPosting</MudText>
-<MudText Class="mb-4">Welcome to your new app built with Vertical Slices, Minimal APIs, and MudBlazor.</MudText>
+@if (!_anyConnected && !_loading)
+{
+    <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+        <MudIcon Icon="@Icons.Material.Filled.Hub" Style="font-size: 5rem; opacity: 0.2;" Class="mb-6" />
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true" Style="font-weight: 700;">Welcome to GenPosting!</MudText>
+        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-8" Style="opacity: 0.7; max-width: 420px;">
+            Connect your social media accounts to start scheduling and publishing posts.
+        </MudText>
+        <MudStack Row="true" Spacing="3" Justify="Justify.Center" Wrap="Wrap.Wrap">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Href="/settings"
+                       StartIcon="@Icons.Custom.Brands.LinkedIn">Connect LinkedIn</MudButton>
+            <MudButton Variant="Variant.Filled" Size="Size.Large" Href="/settings"
+                       StartIcon="@Icons.Custom.Brands.Instagram"
+                       Style="background-color: #E1306C; color: white;">Connect Instagram</MudButton>
+            <MudButton Variant="Variant.Filled" Size="Size.Large" Href="/settings"
+                       StartIcon="@Icons.Custom.Brands.Facebook"
+                       Style="background-color: #1877F2; color: white;">Connect Facebook</MudButton>
+        </MudStack>
+    </div>
+}
+else
+{
+    <!-- Stats Row -->
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_scheduledCount</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Scheduled</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
+                <MudAvatar Style="background-color: #4CAF50;" Variant="Variant.Filled" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color: white;" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_publishedCount</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Published</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
+                <MudAvatar Color="Color.Error" Variant="Variant.Filled" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_failedCount</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Failed</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
+                <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.People" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_connectedCount</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Connected Accounts</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 
-<MudPaper Class="pa-4">
-    <MudText Typo="Typo.h5">API Connectivity Test</MudText>
-    @if (_apiResponse == null)
-    {
-        <MudText>Loading API status...</MudText>
-        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Success">@_apiResponse</MudAlert>
-    }
-    
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="CheckApi">Re-check API</MudButton>
-</MudPaper>
+    <MudGrid>
+        <!-- Upcoming Posts -->
+        <MudItem xs="12" md="7">
+            <MudPaper Class="pa-4 rounded-xl" Elevation="2" Style="height: 100%;">
+                <div class="d-flex align-center justify-space-between mb-4">
+                    <MudText Typo="Typo.h6" Style="font-weight: 700;">Upcoming Posts</MudText>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/calendar" EndIcon="@Icons.Material.Filled.ArrowForward">
+                        View Calendar
+                    </MudButton>
+                </div>
+
+                @if (_loading)
+                {
+                    @for (int i = 0; i < 4; i++)
+                    {
+                        <MudSkeleton Height="72px" Class="mb-2 rounded-lg" />
+                    }
+                }
+                else if (!_upcomingPosts.Any())
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.CalendarMonth"
+                                Title="No posts scheduled"
+                                Message="Create your first post to see it here."
+                                ActionLabel="Create Post"
+                                ActionHref="/create"
+                                MinHeight="200px" />
+                }
+                else
+                {
+                    @foreach (var post in _upcomingPosts)
+                    {
+                        <MudPaper Class="pa-3 mb-2 rounded-lg d-flex align-center gap-3 cursor-pointer" Elevation="0"
+                                  Style="@($"border-left: 4px solid {GetPlatformColor(post.Platform)}; background-color: rgba(0,0,0,0.03);")"
+                                  @onclick="@(() => NavigateToCalendar())">
+                            <MudAvatar Size="Size.Small" Style="@($"background-color: {GetPlatformColor(post.Platform)}; min-width: 36px;")">
+                                <MudIcon Icon="@GetPlatformIcon(post.Platform)" Size="Size.Small" Style="color: white;" />
+                            </MudAvatar>
+                            <div class="flex-grow-1" style="min-width: 0;">
+                                <MudText Typo="Typo.body2" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    @(string.IsNullOrEmpty(post.Content) ? "[Media post]" : post.Content)
+                                </MudText>
+                                <MudText Typo="Typo.caption" Style="opacity: 0.6;">
+                                    @GetPlatformName(post.Platform) · @FormatScheduledTime(post.ScheduledTime)
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Style="@GetStatusStyle(post.Status)">@post.Status</MudChip>
+                        </MudPaper>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Platform Health -->
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4 rounded-xl" Elevation="2" Style="height: 100%;">
+                <MudText Typo="Typo.h6" Style="font-weight: 700;" Class="mb-4">Platform Accounts</MudText>
+
+                <PlatformHealthCard
+                    PlatformName="LinkedIn"
+                    Icon="@Icons.Custom.Brands.LinkedIn"
+                    PlatformColor="#0A66C2"
+                    IsConnected="@LinkedInState.IsAuthenticated"
+                    ConnectHref="/settings" />
+
+                <PlatformHealthCard
+                    PlatformName="Instagram"
+                    Icon="@Icons.Custom.Brands.Instagram"
+                    PlatformColor="#E1306C"
+                    IsConnected="@InstagramState.IsAuthenticated"
+                    ConnectHref="/settings" />
+
+                <PlatformHealthCard
+                    PlatformName="Facebook"
+                    Icon="@Icons.Custom.Brands.Facebook"
+                    PlatformColor="#1877F2"
+                    IsConnected="@FacebookState.IsAuthenticated"
+                    ConnectHref="/settings" />
+
+                <MudButton Variant="Variant.Outlined" FullWidth="true" Color="Color.Primary" Href="/settings"
+                           StartIcon="@Icons.Material.Filled.ManageAccounts" Class="mt-2">
+                    Manage Accounts
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
 
 @code {
-    private string? _apiResponse;
+    private List<ScheduledPostDto> _upcomingPosts = new();
+    private bool _loading = true;
+    private int _scheduledCount, _publishedCount, _failedCount, _connectedCount;
+    private bool _anyConnected;
+
+    [Inject] private NavigationManager Nav { get; set; } = null!;
 
     protected override async Task OnInitializedAsync()
     {
-        await CheckApi();
+        _anyConnected = LinkedInState.IsAuthenticated || InstagramState.IsAuthenticated || FacebookState.IsAuthenticated;
+        _connectedCount = (LinkedInState.IsAuthenticated ? 1 : 0) + (InstagramState.IsAuthenticated ? 1 : 0) + (FacebookState.IsAuthenticated ? 1 : 0);
+
+        if (_anyConnected)
+            await LoadData();
+        else
+            _loading = false;
     }
 
-    private async Task CheckApi()
+    private async Task LoadData()
     {
+        _loading = true;
         try
         {
-            // Note: Update the URL to match your running API port if running separately.
-            // For now, we assume standard localhost:5000 or similar, but since we don't know the port,
-            // we might get a CORS error or 404 if not configured correctly.
-            // For this demo, let's assume the user configures the base address or we just try a relative path if proxied.
-             // If we are strictly separate, we need the full URL. 
-            
-            // Allow user to set URL or just try a hardcoded common one for the demo
-             var response = await Http.GetFromJsonAsync<ApiStatus>("/api/test");
-             _apiResponse = $"Connected! Message: {response?.Message} at {response?.Timestamp}";
+            var all = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("/api/linkedin/scheduled") ?? new();
+            var now = DateTimeOffset.Now;
+            _upcomingPosts = all.Where(p => p.ScheduledTime > now && p.Status == "Pending")
+                                .OrderBy(p => p.ScheduledTime)
+                                .Take(6)
+                                .ToList();
+            _scheduledCount = all.Count(p => p.Status == "Pending");
+            _publishedCount = all.Count(p => p.Status == "Published");
+            _failedCount = all.Count(p => p.Status == "Failed");
         }
-        catch (Exception ex)
+        catch { }
+        finally
         {
-            _apiResponse = $"Error connecting to API: {ex.Message}. Make sure API is running.";
+            _loading = false;
         }
     }
 
-    public record ApiStatus(string Message, DateTime Timestamp);
+    private void NavigateToCalendar() => Nav.NavigateTo("/calendar");
+
+    private static string GetPlatformColor(SocialPlatform p) => p switch
+    {
+        SocialPlatform.LinkedIn => "#0A66C2",
+        SocialPlatform.Instagram => "#E1306C",
+        SocialPlatform.Facebook => "#1877F2",
+        _ => "#757575"
+    };
+
+    private static string GetPlatformIcon(SocialPlatform p) => p switch
+    {
+        SocialPlatform.LinkedIn => Icons.Custom.Brands.LinkedIn,
+        SocialPlatform.Instagram => Icons.Custom.Brands.Instagram,
+        SocialPlatform.Facebook => Icons.Custom.Brands.Facebook,
+        _ => Icons.Material.Filled.Public
+    };
+
+    private static string GetPlatformName(SocialPlatform p) => p.ToString();
+
+    private static string FormatScheduledTime(DateTimeOffset t)
+    {
+        var local = t.ToLocalTime();
+        if (local.Date == DateTime.Today) return $"Today {local:HH:mm}";
+        if (local.Date == DateTime.Today.AddDays(1)) return $"Tomorrow {local:HH:mm}";
+        return local.ToString("d MMM, HH:mm");
+    }
+
+    private static string GetStatusStyle(string status) => status switch
+    {
+        "Published" => "background-color: #4CAF50; color: white;",
+        "Failed" => "background-color: #f44336; color: white;",
+        _ => "background-color: #9E9E9E; color: white;"
+    };
 }
