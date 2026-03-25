@@ -205,6 +205,11 @@
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
+                if (string.IsNullOrEmpty(response.State))
+                {
+                    Snackbar.Add("Invalid authorization response: missing state parameter.", Severity.Error);
+                    return;
+                }
                 await JS.InvokeVoidAsync("sessionStorage.setItem", "instagram_oauth_state", response.State);
                 Nav.NavigateTo(response.AuthUrl, forceLoad: true);
             }
