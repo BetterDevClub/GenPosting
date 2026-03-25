@@ -1,6 +1,6 @@
 namespace GenPosting.Shared.DTOs;
 
-public record LinkedInAuthUrlResponse(string AuthUrl);
+public record LinkedInAuthUrlResponse(string AuthUrl, string State);
 public record LinkedInExchangeTokenRequest(string Code, string RedirectUri);
 public record LinkedInTokenResponse(string AccessToken, int ExpiresInSeconds);
 

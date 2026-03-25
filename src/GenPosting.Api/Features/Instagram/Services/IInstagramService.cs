@@ -4,7 +4,7 @@ namespace GenPosting.Api.Features.Instagram.Services;
 
 public interface IInstagramService
 {
-    string GetAuthorizationUrl(string redirectUri);
+    (string Url, string State) GetAuthorizationUrl(string redirectUri);
     Task<InstagramTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
     Task<InstagramUserDto?> GetProfileAsync(string accessToken, string userId);
     Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName);

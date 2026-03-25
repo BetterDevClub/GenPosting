@@ -6,7 +6,7 @@ namespace GenPosting.Api.Features.LinkedIn.Services;
 
 public interface ILinkedInService
 {
-    string GetAuthorizationUrl(string redirectUri);
+    (string Url, string State) GetAuthorizationUrl(string redirectUri);
     Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
     Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
     Task<LinkedInProfileDto?> GetProfileAsync(string accessToken);
@@ -26,19 +26,20 @@ public class LinkedInService : ILinkedInService
         _settings = settings.Value;
     }
 
-    public string GetAuthorizationUrl(string redirectUri)
+    public (string Url, string State) GetAuthorizationUrl(string redirectUri)
     {
+        var state = Guid.NewGuid().ToString();
         var paramsDict = new Dictionary<string, string>
         {
             { "response_type", "code" },
             { "client_id", _settings.ClientId },
             { "redirect_uri", redirectUri },
             { "scope", _settings.Scope },
-            { "state", Guid.NewGuid().ToString() } // In prod, manage state properly
+            { "state", state }
         };
 
         var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return $"{_settings.AuthUrl}?{queryString}";
+        return ($"{_settings.AuthUrl}?{queryString}", state);
     }
 
     public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)

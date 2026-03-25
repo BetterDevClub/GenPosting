@@ -21,21 +21,22 @@ public class InstagramService : IInstagramService
         _blobService = blobService;
     }
 
-    public string GetAuthorizationUrl(string redirectUri)
+    public (string Url, string State) GetAuthorizationUrl(string redirectUri)
     {
         // Using Facebook Login (Graph API) to support Instagram Content Publishing
         // https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
+        var state = Guid.NewGuid().ToString();
         var paramsDict = new Dictionary<string, string>
         {
             { "client_id", _settings.ClientId },
             { "redirect_uri", redirectUri },
             { "scope", _settings.Scope },
             { "response_type", "code" },
-            { "state", Guid.NewGuid().ToString() } 
+            { "state", state }
         };
 
         var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return $"https://www.facebook.com/v19.0/dialog/oauth?{queryString}";
+        return ($"https://www.facebook.com/v19.0/dialog/oauth?{queryString}", state);
     }
 
     public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)

@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 80vh;">
     <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="3">
@@ -26,6 +27,9 @@
 @code {
     [SupplyParameterFromQuery]
     public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? State { get; set; }
 
     [SupplyParameterFromQuery]
     public string? Error { get; set; }
@@ -52,6 +56,17 @@
             return;
         }
 
+        // Validate OAuth state to prevent CSRF attacks
+        var storedState = await JS.InvokeAsync<string?>("sessionStorage.getItem", "instagram_oauth_state");
+
+        if (string.IsNullOrEmpty(storedState) || storedState != State)
+        {
+            _processing = false;
+            _errorMessage = "Invalid OAuth state parameter. Authorization request may have been tampered with.";
+            return;
+        }
+
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", "instagram_oauth_state");
         await ExchangeToken(Code);
     }
 

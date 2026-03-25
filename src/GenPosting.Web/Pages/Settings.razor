@@ -6,6 +6,7 @@
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Settings</PageTitle>
 
@@ -173,6 +174,7 @@
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
+                await JS.InvokeVoidAsync("sessionStorage.setItem", "linkedin_oauth_state", response.State);
                 Nav.NavigateTo(response.AuthUrl, forceLoad: true);
             }
             else
@@ -203,6 +205,7 @@
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
+                await JS.InvokeVoidAsync("sessionStorage.setItem", "instagram_oauth_state", response.State);
                 Nav.NavigateTo(response.AuthUrl, forceLoad: true);
             }
             else

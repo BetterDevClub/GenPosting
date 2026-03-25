@@ -16,8 +16,8 @@ public class LinkedInModule : ICarterModule
 
         group.MapGet("/auth-url", (string redirectUri, ILinkedInService service) =>
         {
-            var url = service.GetAuthorizationUrl(redirectUri);
-            return Results.Ok(new LinkedInAuthUrlResponse(url));
+            var (url, state) = service.GetAuthorizationUrl(redirectUri);
+            return Results.Ok(new LinkedInAuthUrlResponse(url, state));
         });
 
         group.MapPost("/exchange", async ([FromBody] LinkedInExchangeTokenRequest request, ILinkedInService service) =>

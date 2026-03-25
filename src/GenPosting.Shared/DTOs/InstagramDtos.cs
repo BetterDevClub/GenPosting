@@ -1,6 +1,6 @@
 namespace GenPosting.Shared.DTOs;
 
-public record InstagramAuthUrlResponse(string AuthUrl);
+public record InstagramAuthUrlResponse(string AuthUrl, string State);
 public record InstagramExchangeTokenRequest(string Code, string RedirectUri);
 public record InstagramTokenResponse(string AccessToken, int ExpiresInSeconds, string UserId);
 public record InstagramUserDto(string Id, string Username, string AccountType, int MediaCount, int FollowersCount, string? ProfilePictureUrl);

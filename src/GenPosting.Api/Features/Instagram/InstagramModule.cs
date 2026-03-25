@@ -17,8 +17,8 @@ public class InstagramModule : ICarterModule
 
         group.MapGet("/auth-url", (string redirectUri, IInstagramService service) =>
         {
-            var url = service.GetAuthorizationUrl(redirectUri);
-            return Results.Ok(new InstagramAuthUrlResponse(url));
+            var (url, state) = service.GetAuthorizationUrl(redirectUri);
+            return Results.Ok(new InstagramAuthUrlResponse(url, state));
         });
 
         group.MapPost("/exchange-token", async ([FromBody] InstagramExchangeTokenRequest request, IInstagramService service) =>
