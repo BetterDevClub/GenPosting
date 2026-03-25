@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 80vh;">
     <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="3">
@@ -26,6 +27,9 @@
 @code {
     [SupplyParameterFromQuery]
     public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? State { get; set; }
 
     [SupplyParameterFromQuery]
     public string? Error { get; set; }
@@ -52,6 +56,16 @@
             return;
         }
 
+        // Validate OAuth state to prevent CSRF attacks
+        var storedState = await JS.InvokeAsync<string?>("sessionStorage.getItem", "instagram_oauth_state");
+
+        if (string.IsNullOrEmpty(storedState) || storedState != State)
+        {
+            _processing = false;
+            _errorMessage = "Invalid OAuth state parameter. Authorization request may have been tampered with.";
+            return;
+        }
+
         await ExchangeToken(Code);
     }
 
@@ -65,12 +79,7 @@
                code = code.Substring(0, code.Length - 2); 
             }
 
-            var redirectUri = Nav.ToAbsoluteUri("/instagram-callback").ToString();
-            
-            // Handle potentially duplicated slashes or query params if ToAbsoluteUri behaves unexpectedly
-            // But Nav.ToAbsoluteUri("/path") essentially does BaseUri + path
-             
-            var request = new InstagramExchangeTokenRequest(code, redirectUri);
+            var request = new InstagramExchangeTokenRequest(code);
             var response = await Http.PostAsJsonAsync("/api/instagram/exchange-token", request);
 
             if (response.IsSuccessStatusCode)
@@ -78,6 +87,7 @@
                 var token = await response.Content.ReadFromJsonAsync<InstagramTokenResponse>();
                         if (token != null)
                 {
+                    await JS.InvokeVoidAsync("sessionStorage.removeItem", "instagram_oauth_state");
                     await InstagramState.SetCredentialsAsync(token.AccessToken, token.UserId.ToString());
                     Snackbar.Add("Instagram Connected Successfully!", Severity.Success);
                     Nav.NavigateTo("/settings");

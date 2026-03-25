@@ -6,8 +6,8 @@ namespace GenPosting.Api.Features.LinkedIn.Services;
 
 public interface ILinkedInService
 {
-    string GetAuthorizationUrl(string redirectUri);
-    Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri);
+    (string Url, string State) GetAuthorizationUrl();
+    Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code);
     Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken);
     Task<LinkedInProfileDto?> GetProfileAsync(string accessToken);
     Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo);
@@ -26,28 +26,29 @@ public class LinkedInService : ILinkedInService
         _settings = settings.Value;
     }
 
-    public string GetAuthorizationUrl(string redirectUri)
+    public (string Url, string State) GetAuthorizationUrl()
     {
+        var state = Guid.NewGuid().ToString();
         var paramsDict = new Dictionary<string, string>
         {
             { "response_type", "code" },
             { "client_id", _settings.ClientId },
-            { "redirect_uri", redirectUri },
+            { "redirect_uri", _settings.CallbackUrl },
             { "scope", _settings.Scope },
-            { "state", Guid.NewGuid().ToString() } // In prod, manage state properly
+            { "state", state }
         };
 
         var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return $"{_settings.AuthUrl}?{queryString}";
+        return ($"{_settings.AuthUrl}?{queryString}", state);
     }
 
-    public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)
+    public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code)
     {
         var paramsDict = new Dictionary<string, string>
         {
             { "grant_type", "authorization_code" },
             { "code", code },
-            { "redirect_uri", redirectUri },
+            { "redirect_uri", _settings.CallbackUrl },
             { "client_id", _settings.ClientId },
             { "client_secret", _settings.ClientSecret }
         };

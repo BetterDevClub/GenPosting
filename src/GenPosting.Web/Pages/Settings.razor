@@ -6,6 +6,7 @@
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Settings</PageTitle>
 
@@ -167,12 +168,16 @@
     {
         try
         {
-            var callbackUrl = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
-            var encodedCallback = Uri.EscapeDataString(callbackUrl);
-            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url?redirectUri={encodedCallback}");
+            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url");
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
+                if (string.IsNullOrEmpty(response.State))
+                {
+                    Snackbar.Add("Invalid authorization response: missing state parameter.", Severity.Error);
+                    return;
+                }
+                await JS.InvokeVoidAsync("sessionStorage.setItem", "linkedin_oauth_state", response.State);
                 Nav.NavigateTo(response.AuthUrl, forceLoad: true);
             }
             else
@@ -197,12 +202,16 @@
     {
         try
         {
-            var callbackUrl = Nav.ToAbsoluteUri("/instagram-callback").ToString();
-            var encodedCallback = Uri.EscapeDataString(callbackUrl);
-            var response = await Http.GetFromJsonAsync<InstagramAuthUrlResponse>($"/api/instagram/auth-url?redirectUri={encodedCallback}");
+            var response = await Http.GetFromJsonAsync<InstagramAuthUrlResponse>($"/api/instagram/auth-url");
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
+                if (string.IsNullOrEmpty(response.State))
+                {
+                    Snackbar.Add("Invalid authorization response: missing state parameter.", Severity.Error);
+                    return;
+                }
+                await JS.InvokeVoidAsync("sessionStorage.setItem", "instagram_oauth_state", response.State);
                 Nav.NavigateTo(response.AuthUrl, forceLoad: true);
             }
             else
