@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Local development configuration with real secrets - NEVER commit these
+src/GenPosting.Api/appsettings.Development.json
+
 # User-specific files
 *.rsuser
 *.suo
