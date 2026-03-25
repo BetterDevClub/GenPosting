@@ -1,0 +1,14 @@
+{
+  "LinkedIn": {
+    "ClientId": "<your-linkedin-client-id>",
+    "ClientSecret": "<your-linkedin-client-secret>"
+  },
+  "Instagram": {
+    "ClientId": "<your-facebook-app-id-for-instagram>",
+    "ClientSecret": "<your-facebook-app-secret-for-instagram>"
+  },
+  "Storage": {
+    "ConnectionString": "<your-azure-storage-connection-string>",
+    "ContainerName": "<your-blob-container-name>"
+  }
+}
