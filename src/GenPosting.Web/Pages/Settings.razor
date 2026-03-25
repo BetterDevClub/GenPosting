@@ -168,9 +168,7 @@
     {
         try
         {
-            var callbackUrl = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
-            var encodedCallback = Uri.EscapeDataString(callbackUrl);
-            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url?redirectUri={encodedCallback}");
+            var response = await Http.GetFromJsonAsync<LinkedInAuthUrlResponse>($"/api/linkedin/auth-url");
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {
@@ -204,9 +202,7 @@
     {
         try
         {
-            var callbackUrl = Nav.ToAbsoluteUri("/instagram-callback").ToString();
-            var encodedCallback = Uri.EscapeDataString(callbackUrl);
-            var response = await Http.GetFromJsonAsync<InstagramAuthUrlResponse>($"/api/instagram/auth-url?redirectUri={encodedCallback}");
+            var response = await Http.GetFromJsonAsync<InstagramAuthUrlResponse>($"/api/instagram/auth-url");
             
             if (response != null && !string.IsNullOrEmpty(response.AuthUrl))
             {

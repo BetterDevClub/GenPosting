@@ -14,15 +14,15 @@ public class LinkedInModule : ICarterModule
     {
         var group = app.MapGroup("/api/linkedin").WithTags("LinkedIn");
 
-        group.MapGet("/auth-url", (string redirectUri, ILinkedInService service) =>
+        group.MapGet("/auth-url", (ILinkedInService service) =>
         {
-            var (url, state) = service.GetAuthorizationUrl(redirectUri);
+            var (url, state) = service.GetAuthorizationUrl();
             return Results.Ok(new LinkedInAuthUrlResponse(url, state));
         });
 
         group.MapPost("/exchange", async ([FromBody] LinkedInExchangeTokenRequest request, ILinkedInService service) =>
         {
-            var token = await service.ExchangeTokenAsync(request.Code, request.RedirectUri);
+            var token = await service.ExchangeTokenAsync(request.Code);
             if (token == null) return Results.BadRequest("Failed to exchange token.");
             
             return Results.Ok(token);

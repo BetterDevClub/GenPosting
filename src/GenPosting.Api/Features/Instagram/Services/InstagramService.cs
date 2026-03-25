@@ -21,7 +21,7 @@ public class InstagramService : IInstagramService
         _blobService = blobService;
     }
 
-    public (string Url, string State) GetAuthorizationUrl(string redirectUri)
+    public (string Url, string State) GetAuthorizationUrl()
     {
         // Using Facebook Login (Graph API) to support Instagram Content Publishing
         // https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
@@ -29,7 +29,7 @@ public class InstagramService : IInstagramService
         var paramsDict = new Dictionary<string, string>
         {
             { "client_id", _settings.ClientId },
-            { "redirect_uri", redirectUri },
+            { "redirect_uri", _settings.CallbackUrl },
             { "scope", _settings.Scope },
             { "response_type", "code" },
             { "state", state }
@@ -39,13 +39,13 @@ public class InstagramService : IInstagramService
         return ($"https://www.facebook.com/v19.0/dialog/oauth?{queryString}", state);
     }
 
-    public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)
+    public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code)
     {
         // Exchange code for token via Graph API
         // https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow#exchange-code-for-token
         var tokenUrl = $"https://graph.facebook.com/v19.0/oauth/access_token?" +
                        $"client_id={_settings.ClientId}" +
-                       $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                       $"&redirect_uri={Uri.EscapeDataString(_settings.CallbackUrl)}" +
                        $"&client_secret={_settings.ClientSecret}" +
                        $"&code={code}";
 

@@ -66,7 +66,6 @@
             return;
         }
 
-        await JS.InvokeVoidAsync("sessionStorage.removeItem", "linkedin_oauth_state");
         await ExchangeToken(Code);
     }
 
@@ -74,17 +73,7 @@
     {
         try
         {
-            // Must match the redirect URI used in the first step EXACTLY
-            var redirectUri = Nav.ToAbsoluteUri("/linkedin-callback").ToString();
-            
-            // Be careful with query parameters in redirectUri during exchange, they might need to be stripped if the original didn't have them?
-            // Usually the redirect_uri sent to exchange token must match the one sent to auth url WITHOUT the code attached.
-            // Nav.ToAbsoluteUri("/linkedin-callback").ToString() gives the base path without query params if we just ask for path? 
-            // Actually let's use Nav.BaseUri + "linkedin-callback" to be safe and consistent.
-            
-            var baseRedirectUri = $"{Nav.BaseUri}linkedin-callback";
-
-            var request = new LinkedInExchangeTokenRequest(code, baseRedirectUri);
+            var request = new LinkedInExchangeTokenRequest(code);
             var response = await Http.PostAsJsonAsync("/api/linkedin/exchange", request);
 
             if (response.IsSuccessStatusCode)
@@ -92,6 +81,7 @@
                 var token = await response.Content.ReadFromJsonAsync<LinkedInTokenResponse>();
                         if (token != null)
                 {
+                    await JS.InvokeVoidAsync("sessionStorage.removeItem", "linkedin_oauth_state");
                     await LinkedInState.SetAccessTokenAsync(token.AccessToken);
                     Snackbar.Add("LinkedIn Connected Successfully!", Severity.Success);
                     Nav.NavigateTo("/linkedin");

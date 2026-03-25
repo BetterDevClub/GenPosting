@@ -15,15 +15,15 @@ public class InstagramModule : ICarterModule
         var group = app.MapGroup("/api/instagram")
             .WithTags("Instagram");
 
-        group.MapGet("/auth-url", (string redirectUri, IInstagramService service) =>
+        group.MapGet("/auth-url", (IInstagramService service) =>
         {
-            var (url, state) = service.GetAuthorizationUrl(redirectUri);
+            var (url, state) = service.GetAuthorizationUrl();
             return Results.Ok(new InstagramAuthUrlResponse(url, state));
         });
 
         group.MapPost("/exchange-token", async ([FromBody] InstagramExchangeTokenRequest request, IInstagramService service) =>
         {
-            var token = await service.ExchangeTokenAsync(request.Code, request.RedirectUri);
+            var token = await service.ExchangeTokenAsync(request.Code);
             if (token == null) return Results.BadRequest("Failed to exchange token.");
             return Results.Ok(token);
         });
