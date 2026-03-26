@@ -10,7 +10,6 @@ public interface IFacebookService
     Task<List<FacebookPageDto>> GetUserPagesAsync(string accessToken, string userId);
     Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(string accessToken, CreateFacebookPostRequest request, Stream? fileStream, string? fileName);
     Task<(bool Success, string Error, string? PublishedId)> PublishPostWithUrlAsync(string accessToken, string content, FacebookPostType type, string mediaUrl, FacebookPostTarget target, string? targetId);
-    Task<string> UploadMediaAsync(Stream fileStream, string fileName);
     Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage);
     Task<FacebookPostDto?> GetPostAsync(string accessToken, string postId);
     Task<FacebookPostInsightsResponse?> GetPostInsightsAsync(string accessToken, string postId);
