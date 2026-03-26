@@ -239,7 +239,7 @@
         _loading = true;
         try
         {
-            _allScheduledPosts = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("api/linkedin/scheduled") ?? new();
+            _allScheduledPosts = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("api/scheduling/scheduled") ?? new();
         }
         catch (Exception ex)
         {
@@ -309,7 +309,7 @@
         {
             if (result.Data is string s && s == "DELETE")
             {
-                var delRes = await Http.DeleteAsync($"/api/linkedin/scheduled/{post.Id}");
+                var delRes = await Http.DeleteAsync($"/api/scheduling/scheduled/{post.Id}");
                 if (delRes.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Post deleted", Severity.Success);
@@ -327,7 +327,7 @@
                     updated.ScheduledTime
                 );
 
-                var res = await Http.PutAsJsonAsync($"/api/linkedin/scheduled/{updated.Id}", request);
+                var res = await Http.PutAsJsonAsync($"/api/scheduling/scheduled/{updated.Id}", request);
                 if (res.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Post updated", Severity.Success);
