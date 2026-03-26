@@ -197,11 +197,3 @@
 
     bool IsActive(string segment) => Nav.Uri.Contains($"/{segment}", StringComparison.OrdinalIgnoreCase);
 }
-
-
-<MudThemeProvider @ref="_mudThemeProvider" @bind-IsDarkMode="_isDarkMode" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
-
-
