@@ -1,4 +1,5 @@
 using Carter;
+using FluentValidation;
 using GenPosting.Api.Features.LinkedIn.Services;
 using GenPosting.Api.Features.Scheduling.Models;
 using GenPosting.Api.Features.Scheduling.Services;
@@ -20,8 +21,11 @@ public class LinkedInModule : ICarterModule
             return Results.Ok(new LinkedInAuthUrlResponse(url, state));
         });
 
-        group.MapPost("/exchange", async ([FromBody] LinkedInExchangeTokenRequest request, ILinkedInService service) =>
+        group.MapPost("/exchange", async ([FromBody] LinkedInExchangeTokenRequest request, ILinkedInService service, IValidator<LinkedInExchangeTokenRequest> validator) =>
         {
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
             var token = await service.ExchangeTokenAsync(request.Code);
             if (token == null) return Results.BadRequest("Failed to exchange token.");
             
@@ -68,18 +72,16 @@ public class LinkedInModule : ICarterModule
             return Results.Ok(posts);
         });
 
-        group.MapPost("/post", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, [FromBody] CreateLinkedInPostRequest request, ILinkedInService service, IScheduledPostService scheduler) =>
+        group.MapPost("/post", async ([FromHeader(Name = "X-LinkedIn-Token")] string? accessToken, [FromBody] CreateLinkedInPostRequest request, ILinkedInService service, IScheduledPostService scheduler, IValidator<CreateLinkedInPostRequest> validator) =>
         {
             if (string.IsNullOrEmpty(accessToken)) return Results.Unauthorized();
+
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
 
             // Handling Scheduling
             if (request.ScheduledAt.HasValue)
             {
-                if (request.ScheduledAt.Value <= DateTimeOffset.UtcNow)
-                {
-                    return Results.BadRequest("Scheduled time must be in the future.");
-                }
-
                 var scheduledPost = new ScheduledPost
                 {
                     Platform = SocialPlatform.LinkedIn, // Explicitly set platform
@@ -135,8 +137,11 @@ public class LinkedInModule : ICarterModule
             return Results.NoContent();
         });
 
-        group.MapPut("/scheduled/{id}", async (Guid id, [FromBody] UpdateScheduledPostRequest request, IScheduledPostService scheduler) =>
+        group.MapPut("/scheduled/{id}", async (Guid id, [FromBody] UpdateScheduledPostRequest request, IScheduledPostService scheduler, IValidator<UpdateScheduledPostRequest> validator) =>
         {
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
             var post = await scheduler.GetScheduledPostByIdAsync(id);
             if (post == null) return Results.NotFound();
 

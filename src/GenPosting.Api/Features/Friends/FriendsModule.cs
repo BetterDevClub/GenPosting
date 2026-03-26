@@ -1,4 +1,5 @@
 using Carter;
+using FluentValidation;
 using GenPosting.Api.Features.Friends.Services;
 using GenPosting.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
@@ -18,10 +19,10 @@ public class FriendsModule : ICarterModule
             return Results.Ok(friends);
         });
 
-        group.MapPost("/", async ([FromBody] FriendDto friend, IFriendService service) =>
+        group.MapPost("/", async ([FromBody] FriendDto friend, IFriendService service, IValidator<FriendDto> validator) =>
         {
-            if (string.IsNullOrWhiteSpace(friend.Name))
-                return Results.BadRequest("Name is required");
+            var validation = await validator.ValidateAsync(friend);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
 
             var created = await service.AddAsync(friend);
             return Results.Created($"/api/friends/{created.Id}", created);
