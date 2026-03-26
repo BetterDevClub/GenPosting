@@ -44,7 +44,7 @@ public class InstagramService : IInstagramService
         return ($"https://www.facebook.com/{GraphApiVersion}/dialog/oauth?{queryString}", state);
     }
 
-    public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code)
+    public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code, CancellationToken cancellationToken = default)
     {
         // Exchange code for token via Graph API
         // https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow#exchange-code-for-token
@@ -54,7 +54,7 @@ public class InstagramService : IInstagramService
                        $"&client_secret={_settings.ClientSecret}" +
                        $"&code={code}";
 
-        var response = await _httpClient.GetAsync(tokenUrl);
+        var response = await _httpClient.GetAsync(tokenUrl, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -68,7 +68,7 @@ public class InstagramService : IInstagramService
 
         // Get User ID (Facebook User ID)
         var meUrl = $"https://graph.facebook.com/me?access_token={tokenData.AccessToken}";
-        var meResponse = await _httpClient.GetAsync(meUrl);
+        var meResponse = await _httpClient.GetAsync(meUrl, cancellationToken);
         var meData = await meResponse.Content.ReadFromJsonAsync<FacebookUserDto>();
 
         return new InstagramTokenResponse(
@@ -78,16 +78,16 @@ public class InstagramService : IInstagramService
         );
     }
 
-    public async Task<InstagramUserDto?> GetProfileAsync(string accessToken, string userId)
+    public async Task<InstagramUserDto?> GetProfileAsync(string accessToken, string userId, CancellationToken cancellationToken = default)
     {
         // 1. Get Instagram Business Account ID
-        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId, cancellationToken);
         if (string.IsNullOrEmpty(instagramBusinessId)) return null;
 
         // 2. Get Profile Details
         // https://graph.facebook.com/{GraphApiVersion}/{ig-user-id}?fields=username,profile_picture_url,media_count,followers_count,name
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}?fields=username,name,profile_picture_url,media_count,followers_count,ig_id&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) return null;
 
@@ -103,10 +103,10 @@ public class InstagramService : IInstagramService
          return await _blobService.UploadFileAsync(fileStream, fileName, contentType);
     }
 
-    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostWithUrlAsync(string accessToken, string userId, string caption, InstagramPostType type, string mediaUrl)
+    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostWithUrlAsync(string accessToken, string userId, string caption, InstagramPostType type, string mediaUrl, CancellationToken cancellationToken = default)
     {
         // 1. Get Instagram Business Account ID
-        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId, cancellationToken);
         if (string.IsNullOrEmpty(instagramBusinessId))
         {
             return (false, "No connected Instagram Account found.", null);
@@ -114,7 +114,7 @@ public class InstagramService : IInstagramService
 
         // 2. Create Media Container
         _logger.LogInformation("[PublishPostAsync] Creating container for: {MediaUrl}", mediaUrl);
-        string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, mediaUrl, caption, type);
+        string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, mediaUrl, caption, type, cancellationToken);
         if (string.IsNullOrEmpty(containerId))
         {
              return (false, "Failed to create Instagram Media Container (API rejected media/caption).", null);
@@ -123,9 +123,9 @@ public class InstagramService : IInstagramService
         // 3. Publish Container
         try 
         {
-            await WaitForContainerReadyAsync(accessToken, containerId);
+            await WaitForContainerReadyAsync(accessToken, containerId, cancellationToken);
 
-            var publishedId = await PublishMediaContainerAsync(accessToken, instagramBusinessId, containerId);
+            var publishedId = await PublishMediaContainerAsync(accessToken, instagramBusinessId, containerId, cancellationToken);
             return !string.IsNullOrEmpty(publishedId) ? (true, string.Empty, publishedId) : (false, "Failed to publish media container.", null);
         }
         catch (Exception ex)
@@ -134,7 +134,7 @@ public class InstagramService : IInstagramService
         }
     }
 
-    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName)
+    public async Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(string accessToken, string userId, CreateInstagramPostRequest request, Stream? fileStream, string? fileName, CancellationToken cancellationToken = default)
     {
         if (fileStream == null || string.IsNullOrEmpty(fileName))
         {
@@ -154,14 +154,14 @@ public class InstagramService : IInstagramService
             return (false, $"Blob Storage Upload Failed: {ex.Message}", null);
         }
 
-        return await PublishPostWithUrlAsync(accessToken, userId, request.Caption, request.PostType, publicUrl);
+        return await PublishPostWithUrlAsync(accessToken, userId, request.Caption, request.PostType, publicUrl, cancellationToken);
     }
 
-    private async Task<string?> GetInstagramBusinessIdAsync(string accessToken, string fbUserId)
+    private async Task<string?> GetInstagramBusinessIdAsync(string accessToken, string fbUserId, CancellationToken cancellationToken = default)
     {
         // GET /me/accounts?fields=instagram_business_account&access_token=...
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{fbUserId}/accounts?fields=name,instagram_business_account&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) 
         {
@@ -190,7 +190,7 @@ public class InstagramService : IInstagramService
         return pageWithIg.InstagramBusinessAccount?.Id;
     }
 
-    private async Task<string?> CreateMediaContainerAsync(string accessToken, string igUserId, string mediaUrl, string caption, InstagramPostType type)
+    private async Task<string?> CreateMediaContainerAsync(string accessToken, string igUserId, string mediaUrl, string caption, InstagramPostType type, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{igUserId}/media";
         var query = new List<string>
@@ -217,7 +217,7 @@ public class InstagramService : IInstagramService
         }
 
         var fullUrl = $"{url}?{string.Join("&", query)}";
-        var response = await _httpClient.PostAsync(fullUrl, null); // POST request
+        var response = await _httpClient.PostAsync(fullUrl, null, cancellationToken); // POST request
         
         if (!response.IsSuccessStatusCode) 
         {
@@ -230,14 +230,14 @@ public class InstagramService : IInstagramService
         return result?.Id;
     }
 
-    private async Task WaitForContainerReadyAsync(string accessToken, string containerId)
+    private async Task WaitForContainerReadyAsync(string accessToken, string containerId, CancellationToken cancellationToken = default)
     {
         // Poll for up to 60 seconds (status check every 3s)
         int retries = 0;
         while (retries < 20)
         {
             var url = $"https://graph.facebook.com/{GraphApiVersion}/{containerId}?fields=status_code,status&access_token={accessToken}";
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var status = await response.Content.ReadFromJsonAsync<IgContainerStatus>();
@@ -249,16 +249,16 @@ public class InstagramService : IInstagramService
                      throw new Exception($"IG Container {containerId} processing failed. Instagram Status: ERROR. Verify the file is H.264 MP4 (AAC Audio) and accessible.");
                 }
             }
-            await Task.Delay(3000); // Wait 3s
+            await Task.Delay(3000, cancellationToken); // Wait 3s
             retries++;
         }
         throw new Exception("Timed out waiting for IG Container to process");
     }
 
-    private async Task<string?> PublishMediaContainerAsync(string accessToken, string igUserId, string containerId)
+    private async Task<string?> PublishMediaContainerAsync(string accessToken, string igUserId, string containerId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{igUserId}/media_publish?creation_id={containerId}&access_token={accessToken}";
-        var response = await _httpClient.PostAsync(url, null);
+        var response = await _httpClient.PostAsync(url, null, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -271,11 +271,11 @@ public class InstagramService : IInstagramService
         return data?.Id;
     }
 
-    public async Task<bool> AddCommentAsync(string accessToken, string mediaId, string message)
+    public async Task<bool> AddCommentAsync(string accessToken, string mediaId, string message, CancellationToken cancellationToken = default)
     {
         // https://developers.facebook.com/docs/instagram-api/reference/ig-media/comments
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}/comments?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
-        var response = await _httpClient.PostAsync(url, null);
+        var response = await _httpClient.PostAsync(url, null, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -286,13 +286,13 @@ public class InstagramService : IInstagramService
         return true;
     }
 
-    public async Task<List<InstagramMediaDto>> GetUserMediaAsync(string accessToken, string userId)
+    public async Task<List<InstagramMediaDto>> GetUserMediaAsync(string accessToken, string userId, CancellationToken cancellationToken = default)
     {
-        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId, cancellationToken);
         if (string.IsNullOrEmpty(instagramBusinessId)) return new List<InstagramMediaDto>();
 
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -308,11 +308,11 @@ public class InstagramService : IInstagramService
         )).ToList() ?? new List<InstagramMediaDto>();
     }
 
-    public async Task<List<InstagramInsightMetric>> GetMediaInsightsAsync(string accessToken, string mediaId)
+    public async Task<List<InstagramInsightMetric>> GetMediaInsightsAsync(string accessToken, string mediaId, CancellationToken cancellationToken = default)
     {
         // 1. Determine Media Type to select correct metrics
         var typeUrl = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}?fields=media_type,media_product_type&access_token={accessToken}";
-        var typeResp = await _httpClient.GetAsync(typeUrl);
+        var typeResp = await _httpClient.GetAsync(typeUrl, cancellationToken);
         
         string metrics;
         if (typeResp.IsSuccessStatusCode)
@@ -340,7 +340,7 @@ public class InstagramService : IInstagramService
         }
 
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}/insights?metric={metrics}&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) 
         {
@@ -359,10 +359,10 @@ public class InstagramService : IInstagramService
         )).ToList() ?? new List<InstagramInsightMetric>();
     }
 
-    public async Task<List<InstagramCommentDto>> GetRecentCommentsAsync(string accessToken, string userId)
+    public async Task<List<InstagramCommentDto>> GetRecentCommentsAsync(string accessToken, string userId, CancellationToken cancellationToken = default)
     {
         // 1. Get recent media (limit to 10 to check for comments)
-        var mediaList = await GetUserMediaAsync(accessToken, userId);
+        var mediaList = await GetUserMediaAsync(accessToken, userId, cancellationToken);
         if (!mediaList.Any()) return new List<InstagramCommentDto>();
 
         var recentMedia = mediaList.Take(10).ToList();
@@ -373,7 +373,7 @@ public class InstagramService : IInstagramService
             var url = $"https://graph.facebook.com/{GraphApiVersion}/{media.Id}/comments?fields=id,text,username,timestamp,like_count&access_token={accessToken}";
             try 
             {
-                var response = await _httpClient.GetAsync(url);
+                var response = await _httpClient.GetAsync(url, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<IgCommentListResponse>();
@@ -394,11 +394,11 @@ public class InstagramService : IInstagramService
         return allComments.OrderByDescending(c => DateTimeOffset.TryParse(c.Timestamp, out var dt) ? dt : DateTimeOffset.MinValue).ToList();
     }
 
-    public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message)
+    public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message, CancellationToken cancellationToken = default)
     {
         // POST /{comment-id}/replies
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}/replies?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
-        var response = await _httpClient.PostAsync(url, null);
+        var response = await _httpClient.PostAsync(url, null, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -408,12 +408,12 @@ public class InstagramService : IInstagramService
         }
         return true;
     }
-    public async Task<InstagramAccountInsightsResponse?> GetAccountInsightsAsync(string accessToken, string userId, DateTime? from, DateTime? to)
+    public async Task<InstagramAccountInsightsResponse?> GetAccountInsightsAsync(string accessToken, string userId, DateTime? from, DateTime? to, CancellationToken cancellationToken = default)
     {
-        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId, cancellationToken);
         if (string.IsNullOrEmpty(instagramBusinessId)) return null;
 
-        var profile = await GetProfileAsync(accessToken, userId);
+        var profile = await GetProfileAsync(accessToken, userId, cancellationToken);
         if (profile == null) return null;
 
         var since = (from.HasValue ? new DateTimeOffset(from.Value) : DateTimeOffset.Now.AddDays(-30)).ToUnixTimeSeconds();
@@ -425,7 +425,7 @@ public class InstagramService : IInstagramService
         
         var reachMetric = new InstagramAccountInsightMetricDto("reach", 0, new List<InstagramDailyValue>());
         
-        var response1 = await _httpClient.GetAsync(url1);
+        var response1 = await _httpClient.GetAsync(url1, cancellationToken);
         if (response1.IsSuccessStatusCode)
         {
              var result1 = await response1.Content.ReadFromJsonAsync<IgInsightsResponse>();
@@ -444,7 +444,7 @@ public class InstagramService : IInstagramService
         var accountsEngagedMetric = new InstagramAccountInsightMetricDto("accounts_engaged", 0, new List<InstagramDailyValue>());
         var profileViewsMetric = new InstagramAccountInsightMetricDto("profile_views", 0, new List<InstagramDailyValue>());
 
-        var response2 = await _httpClient.GetAsync(url2);
+        var response2 = await _httpClient.GetAsync(url2, cancellationToken);
         if (response2.IsSuccessStatusCode)
         {
              var json = await response2.Content.ReadAsStringAsync();
@@ -598,9 +598,9 @@ public class InstagramService : IInstagramService
     private class IgContainerStatus { [JsonPropertyName("status_code")] public string StatusCode { get; set; } = ""; }
 
 
-    public async Task<List<InstagramUserSearchResultDto>> SearchUsersAsync(string accessToken, string userId, string query)
+    public async Task<List<InstagramUserSearchResultDto>> SearchUsersAsync(string accessToken, string userId, string query, CancellationToken cancellationToken = default)
     {
-        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
+        var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId, cancellationToken);
         if (string.IsNullOrEmpty(instagramBusinessId)) return new();
 
         try 
@@ -609,7 +609,7 @@ public class InstagramService : IInstagramService
             // We interpret 'query' as a username to look up.
             var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}?fields=business_discovery.username({query}){{username,name,profile_picture_url,id}}&access_token={accessToken}";
             
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                  // Likely user not found or private
