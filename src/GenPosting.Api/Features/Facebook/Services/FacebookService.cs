@@ -11,6 +11,8 @@ namespace GenPosting.Api.Features.Facebook.Services;
 
 public class FacebookService : IFacebookService
 {
+    private const string GraphApiVersion = "{GraphApiVersion}";
+
     private readonly HttpClient _httpClient;
     private readonly FacebookSettings _settings;
     private readonly IBlobStorageService _blobService;
@@ -36,12 +38,12 @@ public class FacebookService : IFacebookService
         };
 
         var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return $"https://www.facebook.com/v19.0/dialog/oauth?{queryString}";
+        return $"https://www.facebook.com/{GraphApiVersion}/dialog/oauth?{queryString}";
     }
 
     public async Task<FacebookTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)
     {
-        var tokenUrl = $"https://graph.facebook.com/v19.0/oauth/access_token?" +
+        var tokenUrl = $"https://graph.facebook.com/{GraphApiVersion}/oauth/access_token?" +
                        $"client_id={_settings.ClientId}" +
                        $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                        $"&client_secret={_settings.ClientSecret}" +
@@ -73,7 +75,7 @@ public class FacebookService : IFacebookService
 
     public async Task<FacebookUserDto?> GetProfileAsync(string accessToken, string userId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{userId}?fields=id,name,email,picture{{url}}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{userId}?fields=id,name,email,picture{{url}}&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) return null;
@@ -86,7 +88,7 @@ public class FacebookService : IFacebookService
 
     public async Task<List<FacebookPageDto>> GetUserPagesAsync(string accessToken, string userId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{userId}/accounts?fields=id,name,category,access_token,followers_count,fan_count,picture{{url}},cover{{source}}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{userId}/accounts?fields=id,name,category,access_token,followers_count,fan_count,picture{{url}},cover{{source}}&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) 
@@ -198,7 +200,7 @@ public class FacebookService : IFacebookService
     private async Task<(bool Success, string Error, string? PublishedId)> PublishTextPostAsync(
         string accessToken, string endpoint, string message)
     {
-        var url = $"https://graph.facebook.com/v19.0/{endpoint}/feed";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/feed";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "message", message },
@@ -221,7 +223,7 @@ public class FacebookService : IFacebookService
     private async Task<(bool Success, string Error, string? PublishedId)> PublishPhotoPostAsync(
         string accessToken, string endpoint, string message, string photoUrl)
     {
-        var url = $"https://graph.facebook.com/v19.0/{endpoint}/photos";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/photos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "url", photoUrl },
@@ -245,7 +247,7 @@ public class FacebookService : IFacebookService
     private async Task<(bool Success, string Error, string? PublishedId)> PublishVideoPostAsync(
         string accessToken, string endpoint, string description, string videoUrl)
     {
-        var url = $"https://graph.facebook.com/v19.0/{endpoint}/videos";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/videos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "file_url", videoUrl },
@@ -269,7 +271,7 @@ public class FacebookService : IFacebookService
     private async Task<(bool Success, string Error, string? PublishedId)> PublishStoryAsync(
         string accessToken, string endpoint, string mediaUrl)
     {
-        var url = $"https://graph.facebook.com/v19.0/{endpoint}/stories";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/stories";
         var mediaType = mediaUrl.EndsWith(".mp4") ? "VIDEO" : "PHOTO";
         
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -316,7 +318,7 @@ public class FacebookService : IFacebookService
 
     public async Task<string> CreateAlbumAsync(string accessToken, string targetId, string name, string? description)
     {
-        var url = $"https://graph.facebook.com/v19.0/{targetId}/albums";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{targetId}/albums";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "name", name },
@@ -339,7 +341,7 @@ public class FacebookService : IFacebookService
 
     public async Task<bool> AddPhotoToAlbumAsync(string accessToken, string albumId, string photoUrl, string? caption)
     {
-        var url = $"https://graph.facebook.com/v19.0/{albumId}/photos";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{albumId}/photos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "url", photoUrl },
@@ -358,7 +360,7 @@ public class FacebookService : IFacebookService
         
         // Simplified fields - only request data that doesn't require special permissions
         // Removed: reactions.summary(true), comments.summary(true), shares (require pages_read_engagement)
-        var url = $"https://graph.facebook.com/v19.0/{endpoint}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url);
         
@@ -388,7 +390,7 @@ public class FacebookService : IFacebookService
 
     public async Task<FacebookPostDto?> GetPostAsync(string accessToken, string postId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{postId}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url,reactions.summary(true),comments.summary(true),shares&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{postId}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url,reactions.summary(true),comments.summary(true),shares&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url);
         
@@ -414,7 +416,7 @@ public class FacebookService : IFacebookService
 
     public async Task<FacebookPostInsightsResponse?> GetPostInsightsAsync(string accessToken, string postId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{postId}/insights?metric=post_impressions,post_engaged_users,post_reactions_by_type_total,post_clicks&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{postId}/insights?metric=post_impressions,post_engaged_users,post_reactions_by_type_total,post_clicks&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url);
         
@@ -455,7 +457,7 @@ public class FacebookService : IFacebookService
         var sinceUnix = new DateTimeOffset(since).ToUnixTimeSeconds();
         var untilUnix = new DateTimeOffset(until).ToUnixTimeSeconds();
 
-        var url = $"https://graph.facebook.com/v19.0/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total,page_fans&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total,page_fans&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url);
         
@@ -475,7 +477,7 @@ public class FacebookService : IFacebookService
         var viewsMetric = ProcessMetric(result.Data, "page_views_total");
 
         // Get current fan count
-        var pageUrl = $"https://graph.facebook.com/v19.0/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
+        var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
         var pageResponse = await _httpClient.GetAsync(pageUrl);
         var pageData = await pageResponse.Content.ReadFromJsonAsync<FbPageStatsDto>();
 
@@ -496,7 +498,7 @@ public class FacebookService : IFacebookService
 
         foreach (var post in posts.Take(10))
         {
-            var url = $"https://graph.facebook.com/v19.0/{post.Id}/comments?fields=id,message,from,created_time,like_count,attachment&access_token={accessToken}";
+            var url = $"https://graph.facebook.com/{GraphApiVersion}/{post.Id}/comments?fields=id,message,from,created_time,like_count,attachment&access_token={accessToken}";
             
             try
             {
@@ -530,7 +532,7 @@ public class FacebookService : IFacebookService
 
     public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message)
     {
-        var url = $"https://graph.facebook.com/v19.0/{commentId}/comments";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}/comments";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             { "message", message },
@@ -551,7 +553,7 @@ public class FacebookService : IFacebookService
 
     public async Task<bool> DeleteCommentAsync(string accessToken, string commentId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{commentId}?access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}?access_token={accessToken}";
         var response = await _httpClient.DeleteAsync(url);
         
         if (!response.IsSuccessStatusCode)
