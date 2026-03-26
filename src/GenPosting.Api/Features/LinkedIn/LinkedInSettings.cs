@@ -10,5 +10,6 @@ public class LinkedInSettings
     public string AuthUrl { get; set; } = "https://www.linkedin.com/oauth/v2/authorization";
     public string TokenUrl { get; set; } = "https://www.linkedin.com/oauth/v2/accessToken";
     public string ApiUrl { get; set; } = "https://api.linkedin.com/v2";
+    public string RestApiUrl { get; set; } = "https://api.linkedin.com/rest";
     public string CallbackUrl { get; set; } = string.Empty;
 }

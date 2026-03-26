@@ -156,7 +156,7 @@ public class LinkedInService : ILinkedInService
 
         if (isVideo)
         {
-            initUrl = "https://api.linkedin.com/rest/videos?action=initializeUpload";
+            initUrl = $"{_settings.RestApiUrl}/videos?action=initializeUpload";
             initPayload = new
             {
                 initializeUploadRequest = new
@@ -168,7 +168,7 @@ public class LinkedInService : ILinkedInService
         }
         else
         {
-            initUrl = "https://api.linkedin.com/rest/images?action=initializeUpload";
+            initUrl = $"{_settings.RestApiUrl}/images?action=initializeUpload";
             initPayload = new
             {
                 initializeUploadRequest = new
@@ -369,14 +369,14 @@ public class LinkedInService : ILinkedInService
         var jsonPayload = System.Text.Json.JsonSerializer.Serialize(postPayload, serializerOptions);
         
         // Use /rest/posts endpoint
-        var requestMessage = CreateRequest(HttpMethod.Post, "https://api.linkedin.com/rest/posts", accessToken, withLinkedInHeaders: true);
+        var requestMessage = CreateRequest(HttpMethod.Post, $"{_settings.RestApiUrl}/posts", accessToken, withLinkedInHeaders: true);
         requestMessage.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
         
         // Force disable chunked encoding to satisfy LinkedIn's strict server
         requestMessage.Headers.TransferEncodingChunked = false;
         
         // --- LOGGING ---
-        _logger.LogInformation("[LinkedInService] Sending POST request to https://api.linkedin.com/rest/posts");
+        _logger.LogInformation("[LinkedInService] Sending POST request to {RestApiUrl}/posts", _settings.RestApiUrl);
         _logger.LogDebug("[LinkedInService] Payload: {JsonPayload}", jsonPayload);
         
         // ----------------

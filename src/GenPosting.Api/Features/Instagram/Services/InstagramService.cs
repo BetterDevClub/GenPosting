@@ -11,6 +11,8 @@ namespace GenPosting.Api.Features.Instagram.Services;
 
 public class InstagramService : IInstagramService
 {
+    private const string GraphApiVersion = "{GraphApiVersion}";
+
     private readonly HttpClient _httpClient;
     private readonly InstagramSettings _settings;
     private readonly IBlobStorageService _blobService;
@@ -39,14 +41,14 @@ public class InstagramService : IInstagramService
         };
 
         var queryString = string.Join("&", paramsDict.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return ($"https://www.facebook.com/v19.0/dialog/oauth?{queryString}", state);
+        return ($"https://www.facebook.com/{GraphApiVersion}/dialog/oauth?{queryString}", state);
     }
 
     public async Task<InstagramTokenResponse?> ExchangeTokenAsync(string code)
     {
         // Exchange code for token via Graph API
         // https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow#exchange-code-for-token
-        var tokenUrl = $"https://graph.facebook.com/v19.0/oauth/access_token?" +
+        var tokenUrl = $"https://graph.facebook.com/{GraphApiVersion}/oauth/access_token?" +
                        $"client_id={_settings.ClientId}" +
                        $"&redirect_uri={Uri.EscapeDataString(_settings.CallbackUrl)}" +
                        $"&client_secret={_settings.ClientSecret}" +
@@ -83,8 +85,8 @@ public class InstagramService : IInstagramService
         if (string.IsNullOrEmpty(instagramBusinessId)) return null;
 
         // 2. Get Profile Details
-        // https://graph.facebook.com/v19.0/{ig-user-id}?fields=username,profile_picture_url,media_count,followers_count,name
-        var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}?fields=username,name,profile_picture_url,media_count,followers_count,ig_id&access_token={accessToken}";
+        // https://graph.facebook.com/{GraphApiVersion}/{ig-user-id}?fields=username,profile_picture_url,media_count,followers_count,name
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}?fields=username,name,profile_picture_url,media_count,followers_count,ig_id&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) return null;
@@ -158,7 +160,7 @@ public class InstagramService : IInstagramService
     private async Task<string?> GetInstagramBusinessIdAsync(string accessToken, string fbUserId)
     {
         // GET /me/accounts?fields=instagram_business_account&access_token=...
-        var url = $"https://graph.facebook.com/v19.0/{fbUserId}/accounts?fields=name,instagram_business_account&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{fbUserId}/accounts?fields=name,instagram_business_account&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) 
@@ -190,7 +192,7 @@ public class InstagramService : IInstagramService
 
     private async Task<string?> CreateMediaContainerAsync(string accessToken, string igUserId, string mediaUrl, string caption, InstagramPostType type)
     {
-        var url = $"https://graph.facebook.com/v19.0/{igUserId}/media";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{igUserId}/media";
         var query = new List<string>
         {
             $"access_token={accessToken}",
@@ -234,7 +236,7 @@ public class InstagramService : IInstagramService
         int retries = 0;
         while (retries < 20)
         {
-            var url = $"https://graph.facebook.com/v19.0/{containerId}?fields=status_code,status&access_token={accessToken}";
+            var url = $"https://graph.facebook.com/{GraphApiVersion}/{containerId}?fields=status_code,status&access_token={accessToken}";
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -255,7 +257,7 @@ public class InstagramService : IInstagramService
 
     private async Task<string?> PublishMediaContainerAsync(string accessToken, string igUserId, string containerId)
     {
-        var url = $"https://graph.facebook.com/v19.0/{igUserId}/media_publish?creation_id={containerId}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{igUserId}/media_publish?creation_id={containerId}&access_token={accessToken}";
         var response = await _httpClient.PostAsync(url, null);
         
         if (!response.IsSuccessStatusCode)
@@ -272,7 +274,7 @@ public class InstagramService : IInstagramService
     public async Task<bool> AddCommentAsync(string accessToken, string mediaId, string message)
     {
         // https://developers.facebook.com/docs/instagram-api/reference/ig-media/comments
-        var url = $"https://graph.facebook.com/v19.0/{mediaId}/comments?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}/comments?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
         var response = await _httpClient.PostAsync(url, null);
         
         if (!response.IsSuccessStatusCode)
@@ -289,7 +291,7 @@ public class InstagramService : IInstagramService
         var instagramBusinessId = await GetInstagramBusinessIdAsync(accessToken, userId);
         if (string.IsNullOrEmpty(instagramBusinessId)) return new List<InstagramMediaDto>();
 
-        var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode)
@@ -309,7 +311,7 @@ public class InstagramService : IInstagramService
     public async Task<List<InstagramInsightMetric>> GetMediaInsightsAsync(string accessToken, string mediaId)
     {
         // 1. Determine Media Type to select correct metrics
-        var typeUrl = $"https://graph.facebook.com/v19.0/{mediaId}?fields=media_type,media_product_type&access_token={accessToken}";
+        var typeUrl = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}?fields=media_type,media_product_type&access_token={accessToken}";
         var typeResp = await _httpClient.GetAsync(typeUrl);
         
         string metrics;
@@ -337,7 +339,7 @@ public class InstagramService : IInstagramService
              metrics = "reach,saved"; 
         }
 
-        var url = $"https://graph.facebook.com/v19.0/{mediaId}/insights?metric={metrics}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{mediaId}/insights?metric={metrics}&access_token={accessToken}";
         var response = await _httpClient.GetAsync(url);
         
         if (!response.IsSuccessStatusCode) 
@@ -368,7 +370,7 @@ public class InstagramService : IInstagramService
 
         foreach (var media in recentMedia)
         {
-            var url = $"https://graph.facebook.com/v19.0/{media.Id}/comments?fields=id,text,username,timestamp,like_count&access_token={accessToken}";
+            var url = $"https://graph.facebook.com/{GraphApiVersion}/{media.Id}/comments?fields=id,text,username,timestamp,like_count&access_token={accessToken}";
             try 
             {
                 var response = await _httpClient.GetAsync(url);
@@ -395,7 +397,7 @@ public class InstagramService : IInstagramService
     public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message)
     {
         // POST /{comment-id}/replies
-        var url = $"https://graph.facebook.com/v19.0/{commentId}/replies?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}/replies?message={Uri.EscapeDataString(message)}&access_token={accessToken}";
         var response = await _httpClient.PostAsync(url, null);
         
         if (!response.IsSuccessStatusCode)
@@ -419,7 +421,7 @@ public class InstagramService : IInstagramService
         
         // --- Request 1: Reach (Time Series) ---
         // Reach works best with time_series to get the daily breakdown
-        var url1 = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/insights?metric=reach&period=day&since={since}&until={until}&access_token={accessToken}";
+        var url1 = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}/insights?metric=reach&period=day&since={since}&until={until}&access_token={accessToken}";
         
         var reachMetric = new InstagramAccountInsightMetricDto("reach", 0, new List<InstagramDailyValue>());
         
@@ -437,7 +439,7 @@ public class InstagramService : IInstagramService
         
         // --- Request 2: Accounts Engaged & Profile Views (Total Value) ---
         // These often require metric_type=total_value. Also "period=day" is seemingly required by API validation even for total_value?
-        var url2 = $"https://graph.facebook.com/v19.0/{instagramBusinessId}/insights?metric=accounts_engaged,profile_views&metric_type=total_value&period=day&since={since}&until={until}&access_token={accessToken}";
+        var url2 = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}/insights?metric=accounts_engaged,profile_views&metric_type=total_value&period=day&since={since}&until={until}&access_token={accessToken}";
         
         var accountsEngagedMetric = new InstagramAccountInsightMetricDto("accounts_engaged", 0, new List<InstagramDailyValue>());
         var profileViewsMetric = new InstagramAccountInsightMetricDto("profile_views", 0, new List<InstagramDailyValue>());
@@ -605,7 +607,7 @@ public class InstagramService : IInstagramService
         {
             // Note: Instagram API only supports looking up specific usernames via Business Discovery, not fuzzy search.
             // We interpret 'query' as a username to look up.
-            var url = $"https://graph.facebook.com/v19.0/{instagramBusinessId}?fields=business_discovery.username({query}){{username,name,profile_picture_url,id}}&access_token={accessToken}";
+            var url = $"https://graph.facebook.com/{GraphApiVersion}/{instagramBusinessId}?fields=business_discovery.username({query}){{username,name,profile_picture_url,id}}&access_token={accessToken}";
             
             var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode)
