@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 using GenPosting.Shared.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -8,14 +9,18 @@ namespace GenPosting.Api.Features.LinkedIn.Services;
 
 public class LinkedInService : ILinkedInService
 {
+    private static readonly TimeSpan AuthorUrnCacheTtl = TimeSpan.FromHours(1);
+
     private readonly HttpClient _httpClient;
     private readonly LinkedInSettings _settings;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<LinkedInService> _logger;
 
-    public LinkedInService(HttpClient httpClient, IOptions<LinkedInSettings> settings, ILogger<LinkedInService> logger)
+    public LinkedInService(HttpClient httpClient, IOptions<LinkedInSettings> settings, IMemoryCache cache, ILogger<LinkedInService> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -74,27 +79,14 @@ public class LinkedInService : ILinkedInService
 
     public async Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken, CancellationToken cancellationToken = default)
     {
-        // NOTE: fetching posts (UGC) usually requires querying 'ugcPosts' or 'shares' with specific author URN.
-        // First we need the user's URN (profile ID).
-
-        // 1. Get Profile to get URN
-        string authorUrn;
-        try 
+        var authorUrn = await GetAuthorUrnInternalAsync(accessToken, cancellationToken);
+        if (authorUrn == null)
         {
-            var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
-            var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
-            if (userInfoResponse == null) return new List<LinkedInPostDto>();
-            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError("LinkedIn Profile Fetch Error: {Message}", ex.Message);
+            _logger.LogError("LinkedIn Profile Fetch Error: unable to resolve author URN");
             return new List<LinkedInPostDto>();
         }
 
-        // 2. Fetch Posts (Simplified - in real world this query is more complex and depends on API version)
-        // Using sample URN request for ugcPosts
+        // Fetch Posts (Simplified - in real world this query is more complex and depends on API version)
         var requestUrl = $"{_settings.ApiUrl}/ugcPosts?q=authors&authors=List({Uri.EscapeDataString(authorUrn)})";
         
         // For this demo, we might mock if the API isn't accessible or returns 403 (common without partner program)
@@ -137,20 +129,10 @@ public class LinkedInService : ILinkedInService
 
     public async Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo, CancellationToken cancellationToken = default)
     {
-        // 1. Get Author URN
-        string authorUrn;
-        try 
-        {
-            var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
-            var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
-            if (userInfoResponse == null) return null;
-            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
-        }
-        catch { return null; }
+        var authorUrn = await GetAuthorUrnInternalAsync(accessToken, cancellationToken);
+        if (authorUrn == null) return null;
 
-        // 2. Initialize Upload (Images or Videos API)
-        // Note: We use the /rest/ endpoint directly for modern APIs
+        // Initialize Upload (Images or Videos API)
         string initUrl;
         object initPayload;
 
@@ -267,12 +249,20 @@ public class LinkedInService : ILinkedInService
 
     private async Task<string?> GetAuthorUrnInternalAsync(string accessToken, CancellationToken cancellationToken = default)
     {
-        try 
+        var cacheKey = $"linkedin:author-urn:{accessToken.GetHashCode()}";
+        if (_cache.TryGetValue(cacheKey, out string? cached))
+            return cached;
+
+        try
         {
             var request = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken);
             var response = await _httpClient.SendAsync(request, cancellationToken);
             var userInfoResponse = await response.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
-            return userInfoResponse != null ? $"urn:li:person:{userInfoResponse.sub}" : null;
+            if (userInfoResponse == null) return null;
+
+            var urn = $"urn:li:person:{userInfoResponse.sub}";
+            _cache.Set(cacheKey, urn, AuthorUrnCacheTtl);
+            return urn;
         }
         catch (Exception ex)
         {
@@ -285,22 +275,10 @@ public class LinkedInService : ILinkedInService
     {
         _logger.LogDebug("[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202401");
 
-        // 1. Get User URN
-        string authorUrn;
-        try 
-        {
-            var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
-            var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
-            if (userInfoResponse == null) return (false, "Failed to fetch user info", null);
-            authorUrn = $"urn:li:person:{userInfoResponse.sub}";
-        }
-        catch (Exception ex)
-        {
-            return (false, $"Error fetching profile: {ex.Message}", null);
-        }
+        var authorUrn = await GetAuthorUrnInternalAsync(accessToken, cancellationToken);
+        if (authorUrn == null) return (false, "Failed to fetch user info", null);
 
-        // 2. Create Post Payload (Posts API)
+        // Create Post Payload (Posts API)
         // Doc: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
         
         var postPayload = new Dictionary<string, object>

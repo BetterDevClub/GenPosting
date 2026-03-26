@@ -18,6 +18,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddCarter();
 
 // Shared Infrastructure
+builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IBlobStorageService, AzureBlobStorageService>();
 
 // Register LinkedIn Feature Services
