@@ -484,18 +484,10 @@ public class InstagramService : IInstagramService
              // We prioritize 'value' directly.
              
              int val = 0;
-             if (v.Value is JsonElement je && je.ValueKind == JsonValueKind.Number)
-             {
-                 val = je.GetInt32();
-             }
-             else if (v.Value is JsonElement jeObject && jeObject.ValueKind == JsonValueKind.Object)
-             {
-                 // Handle error or special object structure
-             } 
-             else if (int.TryParse(v.Value?.ToString(), out int i))
-             {
+             if (v.Value.ValueKind == JsonValueKind.Number)
+                 val = v.Value.GetInt32();
+             else if (v.Value.ValueKind == JsonValueKind.String && int.TryParse(v.Value.GetString(), out int i))
                  val = i;
-             }
              
              total += val;
              
@@ -543,7 +535,7 @@ public class InstagramService : IInstagramService
     }
     
     private class IgInsightValue { 
-        [JsonPropertyName("value")] public object Value { get; set; } = new(); 
+        [JsonPropertyName("value")] public JsonElement Value { get; set; }
         [JsonPropertyName("end_time")] public string EndTime { get; set; } = "";
     }
 

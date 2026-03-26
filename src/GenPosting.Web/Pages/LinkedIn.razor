@@ -262,14 +262,15 @@ else
             var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<LinkedInPostCreatedResponse>();
-                if (result != null && result.IsScheduled)
+                if (scheduledAt.HasValue)
                 {
-                    Snackbar.Add($"Post scheduled for {scheduledAt:g}", Severity.Success);
+                    var result = await response.Content.ReadFromJsonAsync<PostScheduledResponse>();
+                    Snackbar.Add($"Post scheduled for {scheduledAt:g} (ID: {result?.ScheduledPostId})", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add("Post created successfully!", Severity.Success);
+                    var result = await response.Content.ReadFromJsonAsync<PostPublishedResponse>();
+                    Snackbar.Add($"Post created successfully! (ID: {result?.PlatformPostId})", Severity.Success);
                 }
                 
                 _newPostContent = string.Empty;

@@ -93,7 +93,7 @@ public class LinkedInModule : ICarterModule
                 };
 
                 await scheduler.SchedulePostAsync(scheduledPost);
-                return Results.Ok(new LinkedInPostCreatedResponse(scheduledPost.Id.ToString(), IsScheduled: true));
+                return Results.Ok(new PostScheduledResponse(scheduledPost.Id));
             }
             
             var (success, error, data) = await service.CreatePostAsync(accessToken, request.Content, request.MediaUrns, request.MediaType);
@@ -111,7 +111,7 @@ public class LinkedInModule : ICarterModule
                 }
             }
 
-            return Results.Ok(data);
+            return Results.Ok(new PostPublishedResponse(data!.Id));
         });
 
         // Scheduled Posts Endpoints
