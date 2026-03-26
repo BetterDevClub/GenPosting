@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 using GenPosting.Shared.DTOs;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GenPosting.Api.Features.LinkedIn.Services;
@@ -20,11 +21,13 @@ public class LinkedInService : ILinkedInService
 {
     private readonly HttpClient _httpClient;
     private readonly LinkedInSettings _settings;
+    private readonly ILogger<LinkedInService> _logger;
 
-    public LinkedInService(HttpClient httpClient, IOptions<LinkedInSettings> settings)
+    public LinkedInService(HttpClient httpClient, IOptions<LinkedInSettings> settings, ILogger<LinkedInService> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
+        _logger = logger;
     }
 
     public (string Url, string State) GetAuthorizationUrl()
@@ -97,7 +100,7 @@ public class LinkedInService : ILinkedInService
         }
         catch (HttpRequestException ex)
         {
-            Console.WriteLine($"LinkedIn Profile Fetch Error: {ex.Message}");
+            _logger.LogError("LinkedIn Profile Fetch Error: {Message}", ex.Message);
             return new List<LinkedInPostDto>();
         }
 
@@ -138,7 +141,7 @@ public class LinkedInService : ILinkedInService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LinkedInService] Error fetching profile: {ex.Message}");
+            _logger.LogError("[LinkedInService] Error fetching profile: {Message}", ex.Message);
             return null;
         }
     }
@@ -195,7 +198,7 @@ public class LinkedInService : ILinkedInService
         if (!initResp.IsSuccessStatusCode) 
         {
              var err = await initResp.Content.ReadAsStringAsync();
-             Console.WriteLine($"[LinkedInService] Initialize Upload Failed: {err}");
+             _logger.LogError("[LinkedInService] Initialize Upload Failed: {Err}", err);
              return null;
         }
 
@@ -230,7 +233,7 @@ public class LinkedInService : ILinkedInService
         var uploadResp = await uploadClient.PutAsync(uploadUrl, fileContent);
         if (!uploadResp.IsSuccessStatusCode)
         {
-             Console.WriteLine($"[LinkedInService] Media Upload Failed: {uploadResp.StatusCode}");
+             _logger.LogError("[LinkedInService] Media Upload Failed: {StatusCode}", uploadResp.StatusCode);
              return null;
         }
 
@@ -265,11 +268,11 @@ public class LinkedInService : ILinkedInService
         if (!response.IsSuccessStatusCode)
         {
              var err = await response.Content.ReadAsStringAsync();
-             Console.WriteLine($"[LinkedInService] Add Comment Failed: {response.StatusCode} - {err}");
+             _logger.LogError("[LinkedInService] Add Comment Failed: {StatusCode} - {Err}", response.StatusCode, err);
              return false;
         }
         
-        Console.WriteLine($"[LinkedInService] Added comment to {postUrn}");
+        _logger.LogInformation("[LinkedInService] Added comment to {PostUrn}", postUrn);
         return true;
     }
 
@@ -284,14 +287,14 @@ public class LinkedInService : ILinkedInService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LinkedInService] Error fetching profile: {ex.Message}");
+            _logger.LogError("[LinkedInService] Error fetching profile: {Message}", ex.Message);
             return null;
         }
     }
 
     public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE")
     {
-        Console.WriteLine($"[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202401");
+        _logger.LogDebug("[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202401");
 
         // 1. Get User URN
         string authorUrn;
@@ -384,8 +387,8 @@ public class LinkedInService : ILinkedInService
         requestMessage.Headers.TransferEncodingChunked = false;
         
         // --- LOGGING ---
-        Console.WriteLine($"[LinkedInService] Sending POST request to https://api.linkedin.com/rest/posts");
-        Console.WriteLine($"[LinkedInService] Payload: {jsonPayload}");
+        _logger.LogInformation("[LinkedInService] Sending POST request to https://api.linkedin.com/rest/posts");
+        _logger.LogDebug("[LinkedInService] Payload: {JsonPayload}", jsonPayload);
         
         // ----------------
 
@@ -394,8 +397,8 @@ public class LinkedInService : ILinkedInService
         if (!response.IsSuccessStatusCode)
         {
              var errorBody = await response.Content.ReadAsStringAsync();
-             Console.WriteLine($"[LinkedInService] ERROR: Status {response.StatusCode}");
-             Console.WriteLine($"[LinkedInService] Response Body: {errorBody}");
+             _logger.LogError("[LinkedInService] ERROR: Status {StatusCode}", response.StatusCode);
+             _logger.LogError("[LinkedInService] Response Body: {ErrorBody}", errorBody);
              return (false, $"LinkedIn Error ({response.StatusCode}): {errorBody}", null);
         }
 
