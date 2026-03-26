@@ -72,6 +72,9 @@ public class FacebookModule : ICarterModule
                 scheduledFor = parsedDate;
             }
 
+            if (scheduledFor.HasValue && scheduledFor.Value <= DateTimeOffset.UtcNow)
+                return Results.BadRequest("Scheduled time must be in the future.");
+
             // Scheduling Logic
             if (scheduledFor.HasValue)
             {
