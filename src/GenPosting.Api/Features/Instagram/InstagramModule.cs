@@ -88,11 +88,11 @@ public class InstagramModule : ICarterModule
                  if (stream == null || file == null) 
                     return Results.BadRequest("File is required for scheduling.");
 
-                 // 1. Upload Media First
+                 // 1. Upload Media First — store blob name (not SAS URL) so a fresh SAS can be generated at publish time
                  string mediaUrl;
                  try 
                  {
-                     // Use the exposed UploadMediaAsync from IInstagramService
+                     // UploadMediaAsync returns the blob name; background service generates fresh SAS at publish time
                      mediaUrl = await service.UploadMediaAsync(stream, file.FileName);
                  }
                  catch (Exception ex)
@@ -108,11 +108,11 @@ public class InstagramModule : ICarterModule
                      AccessToken = token,
                      Content = caption,
                      IgPostType = postType,
-                     MediaUrns = new List<string> { mediaUrl }, // Storing URL in MediaUrns mechanism
+                     MediaUrns = new List<string> { mediaUrl }, // Blob name — fresh SAS generated at publish time
                      ScheduledTime = scheduledFor.Value,
-                     ThumbnailUrl = mediaUrl, // Using same URL for thumbnail for now
+                     ThumbnailUrl = mediaUrl,
                      Status = "Pending",
-                     Comments = commentsList // Add comments
+                     Comments = commentsList
                  };
 
                  await scheduledService.SchedulePostAsync(scheduledPost);

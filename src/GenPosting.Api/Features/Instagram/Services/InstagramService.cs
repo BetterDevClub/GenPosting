@@ -140,7 +140,8 @@ public class InstagramService : IInstagramService
         string publicUrl;
         try 
         {
-             publicUrl = await UploadMediaAsync(fileStream, fileName);
+             var blobName = await UploadMediaAsync(fileStream, fileName);
+             publicUrl = await _blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1));
              Console.WriteLine($"[PublishPostAsync] Uploaded media to: {publicUrl}");
         }
         catch (Exception ex)
