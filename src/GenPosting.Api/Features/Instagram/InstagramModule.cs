@@ -67,8 +67,9 @@ public class InstagramModule : ICarterModule
             {
                 scheduledFor = parsedDate;
             }
-            
-            // Parse comments (simple splitting by newline for now if multiple, typically one comment block might be sent)
+
+            if (scheduledFor.HasValue && scheduledFor.Value <= DateTimeOffset.UtcNow)
+                return Results.BadRequest("Scheduled time must be in the future.");
             // Or better, let the UI send raw text, and we split by newline if we want multiple comments? 
             // For now let's assume raw text is one comment, or if we want multiple, we need a better convention.
             // Let's assume the UI sends a JSON string or we split by a delimiter.
