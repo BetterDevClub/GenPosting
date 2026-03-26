@@ -9,72 +9,69 @@
 
 <PageTitle>Dashboard - GenPosting</PageTitle>
 
+<div class="gp-page">
+
 @if (!_anyConnected && !_loading)
 {
-    <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
-        <MudIcon Icon="@Icons.Material.Filled.Hub" Style="font-size: 5rem; opacity: 0.2;" Class="mb-6" />
-        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true" Style="font-weight: 700;">Welcome to GenPosting!</MudText>
-        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-8" Style="opacity: 0.7; max-width: 420px;">
-            Connect your social media accounts to start scheduling and publishing posts.
+    <!-- Welcome / onboarding state -->
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center;">
+        <div style="width: 80px; height: 80px; border-radius: 24px; background: var(--gp-gradient); display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(124,58,237,0.35);">
+            <MudIcon Icon="@Icons.Material.Filled.Hub" Style="font-size: 2.5rem; color: white;" />
+        </div>
+        <MudText Typo="Typo.h4" GutterBottom="true">Welcome to GenPosting!</MudText>
+        <MudText Typo="Typo.body1" Class="mb-8" Style="opacity: 0.65; max-width: 400px;">
+            Connect your social media accounts to start scheduling and publishing posts across all platforms.
         </MudText>
         <MudStack Row="true" Spacing="3" Justify="Justify.Center" Wrap="Wrap.Wrap">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Href="/settings"
                        StartIcon="@Icons.Custom.Brands.LinkedIn">Connect LinkedIn</MudButton>
             <MudButton Variant="Variant.Filled" Size="Size.Large" Href="/settings"
                        StartIcon="@Icons.Custom.Brands.Instagram"
-                       Style="background-color: #E1306C; color: white;">Connect Instagram</MudButton>
+                       Style="background: var(--gp-gradient-instagram); color: white;">Connect Instagram</MudButton>
             <MudButton Variant="Variant.Filled" Size="Size.Large" Href="/settings"
                        StartIcon="@Icons.Custom.Brands.Facebook"
-                       Style="background-color: #1877F2; color: white;">Connect Facebook</MudButton>
+                       Style="background: var(--gp-gradient-facebook); color: white;">Connect Facebook</MudButton>
         </MudStack>
     </div>
 }
 else
 {
+    <!-- Greeting -->
+    <div Class="mb-6" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <MudText Typo="Typo.h5" Style="margin-bottom: 2px;">@_greeting 👋</MudText>
+            <MudText Typo="Typo.body2" Style="opacity: 0.55;">Here's your social media overview</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/create"
+                   StartIcon="@Icons.Material.Filled.EditNote" Size="Size.Medium">
+            New Post
+        </MudButton>
+    </div>
+
     <!-- Stats Row -->
     <MudGrid Class="mb-6">
         <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
-                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.Schedule" />
-                </MudAvatar>
-                <div>
-                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_scheduledCount</MudText>
-                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Scheduled</MudText>
-                </div>
+            <MudPaper Class="pa-5 gp-card-hover gp-stat-scheduled" Elevation="0">
+                <MudText Typo="Typo.overline" Style="opacity: 0.6; font-weight: 600;">Scheduled</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight: 800; margin: 4px 0 0;">@_scheduledCount</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
-                <MudAvatar Style="background-color: #4CAF50;" Variant="Variant.Filled" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color: white;" />
-                </MudAvatar>
-                <div>
-                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_publishedCount</MudText>
-                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Published</MudText>
-                </div>
+            <MudPaper Class="pa-5 gp-card-hover gp-stat-published" Elevation="0">
+                <MudText Typo="Typo.overline" Style="opacity: 0.6; font-weight: 600;">Published</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight: 800; margin: 4px 0 0;">@_publishedCount</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
-                <MudAvatar Color="Color.Error" Variant="Variant.Filled" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" />
-                </MudAvatar>
-                <div>
-                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_failedCount</MudText>
-                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Failed</MudText>
-                </div>
+            <MudPaper Class="pa-5 gp-card-hover gp-stat-failed" Elevation="0">
+                <MudText Typo="Typo.overline" Style="opacity: 0.6; font-weight: 600;">Failed</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight: 800; margin: 4px 0 0;">@_failedCount</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4 rounded-xl d-flex align-center gap-4" Elevation="2">
-                <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.People" />
-                </MudAvatar>
-                <div>
-                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_connectedCount</MudText>
-                    <MudText Typo="Typo.body2" Style="opacity: 0.7;">Connected Accounts</MudText>
-                </div>
+            <MudPaper Class="pa-5 gp-card-hover gp-stat-connected" Elevation="0">
+                <MudText Typo="Typo.overline" Style="opacity: 0.6; font-weight: 600;">Connected</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight: 800; margin: 4px 0 0;">@_connectedCount</MudText>
             </MudPaper>
         </MudItem>
     </MudGrid>
@@ -82,10 +79,11 @@ else
     <MudGrid>
         <!-- Upcoming Posts -->
         <MudItem xs="12" md="7">
-            <MudPaper Class="pa-4 rounded-xl" Elevation="2" Style="height: 100%;">
-                <div class="d-flex align-center justify-space-between mb-4">
-                    <MudText Typo="Typo.h6" Style="font-weight: 700;">Upcoming Posts</MudText>
-                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/calendar" EndIcon="@Icons.Material.Filled.ArrowForward">
+            <MudPaper Class="pa-5" Elevation="0" Style="height: 100%;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <MudText Typo="Typo.h6">Upcoming Posts</MudText>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/calendar"
+                               EndIcon="@Icons.Material.Filled.ArrowForward" Size="Size.Small">
                         View Calendar
                     </MudButton>
                 </div>
@@ -94,7 +92,7 @@ else
                 {
                     @for (int i = 0; i < 4; i++)
                     {
-                        <MudSkeleton Height="72px" Class="mb-2 rounded-lg" />
+                        <MudSkeleton Height="64px" Class="mb-2" Style="border-radius: 10px;" />
                     }
                 }
                 else if (!_upcomingPosts.Any())
@@ -104,28 +102,28 @@ else
                                 Message="Create your first post to see it here."
                                 ActionLabel="Create Post"
                                 ActionHref="/create"
-                                MinHeight="200px" />
+                                MinHeight="180px" />
                 }
                 else
                 {
                     @foreach (var post in _upcomingPosts)
                     {
-                        <MudPaper Class="pa-3 mb-2 rounded-lg d-flex align-center gap-3 cursor-pointer" Elevation="0"
-                                  Style="@($"border-left: 4px solid {GetPlatformColor(post.Platform)}; background-color: rgba(0,0,0,0.03);")"
-                                  @onclick="@(() => NavigateToCalendar())">
-                            <MudAvatar Size="Size.Small" Style="@($"background-color: {GetPlatformColor(post.Platform)}; min-width: 36px;")">
-                                <MudIcon Icon="@GetPlatformIcon(post.Platform)" Size="Size.Small" Style="color: white;" />
+                        <div class="gp-post-row" @onclick="@(() => NavigateToCalendar())"
+                             style="@($"border-left: 3px solid {GetPlatformColor(post.Platform)};")">
+                            <MudAvatar Size="Size.Small"
+                                       Style="@($"background: {GetPlatformColor(post.Platform)}; min-width: 32px; width: 32px; height: 32px;")">
+                                <MudIcon Icon="@GetPlatformIcon(post.Platform)" Size="Size.Small" Style="color: white; font-size: 0.875rem;" />
                             </MudAvatar>
-                            <div class="flex-grow-1" style="min-width: 0;">
-                                <MudText Typo="Typo.body2" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 0.875rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                     @(string.IsNullOrEmpty(post.Content) ? "[Media post]" : post.Content)
-                                </MudText>
-                                <MudText Typo="Typo.caption" Style="opacity: 0.6;">
+                                </div>
+                                <div style="font-size: 0.75rem; opacity: 0.55; margin-top: 2px;">
                                     @GetPlatformName(post.Platform) · @FormatScheduledTime(post.ScheduledTime)
-                                </MudText>
+                                </div>
                             </div>
-                            <MudChip T="string" Size="Size.Small" Style="@GetStatusStyle(post.Status)">@post.Status</MudChip>
-                        </MudPaper>
+                            <span class="gp-status-pill" style="@GetStatusStyle(post.Status)">@post.Status</span>
+                        </div>
                     }
                 }
             </MudPaper>
@@ -133,8 +131,8 @@ else
 
         <!-- Platform Health -->
         <MudItem xs="12" md="5">
-            <MudPaper Class="pa-4 rounded-xl" Elevation="2" Style="height: 100%;">
-                <MudText Typo="Typo.h6" Style="font-weight: 700;" Class="mb-4">Platform Accounts</MudText>
+            <MudPaper Class="pa-5" Elevation="0" Style="height: 100%;">
+                <MudText Typo="Typo.h6" Class="mb-4">Connected Accounts</MudText>
 
                 <PlatformHealthCard
                     PlatformName="LinkedIn"
@@ -158,7 +156,7 @@ else
                     ConnectHref="/settings" />
 
                 <MudButton Variant="Variant.Outlined" FullWidth="true" Color="Color.Primary" Href="/settings"
-                           StartIcon="@Icons.Material.Filled.ManageAccounts" Class="mt-2">
+                           StartIcon="@Icons.Material.Filled.ManageAccounts" Class="mt-3">
                     Manage Accounts
                 </MudButton>
             </MudPaper>
@@ -166,16 +164,22 @@ else
     </MudGrid>
 }
 
+</div>
+
 @code {
     private List<ScheduledPostDto> _upcomingPosts = new();
     private bool _loading = true;
     private int _scheduledCount, _publishedCount, _failedCount, _connectedCount;
     private bool _anyConnected;
+    private string _greeting = "Good day";
 
     [Inject] private NavigationManager Nav { get; set; } = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        var hour = DateTime.Now.Hour;
+        _greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
         _anyConnected = LinkedInState.IsAuthenticated || InstagramState.IsAuthenticated || FacebookState.IsAuthenticated;
         _connectedCount = (LinkedInState.IsAuthenticated ? 1 : 0) + (InstagramState.IsAuthenticated ? 1 : 0) + (FacebookState.IsAuthenticated ? 1 : 0);
 
@@ -237,8 +241,9 @@ else
 
     private static string GetStatusStyle(string status) => status switch
     {
-        "Published" => "background-color: #4CAF50; color: white;",
-        "Failed" => "background-color: #f44336; color: white;",
-        _ => "background-color: #9E9E9E; color: white;"
+        "Published" => "background: #10B981; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
+        "Failed"    => "background: #EF4444; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
+        _           => "background: rgba(0,0,0,0.08); color: rgba(0,0,0,0.6); padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;"
     };
 }
+

@@ -1,0 +1,27 @@
+.gp-post-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.025);
+    cursor: pointer;
+    transition: background 200ms ease, transform 200ms ease;
+    border-left: 3px solid transparent;
+}
+
+.gp-post-row:hover {
+    background: rgba(124, 58, 237, 0.06);
+    transform: translateX(2px);
+}
+
+.gp-status-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}

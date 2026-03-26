@@ -1,6 +1,76 @@
-.navbar-toggler {
-    background-color: rgba(255, 255, 255, 0.1);
+/* ===================================================
+   GenPosting Sidebar Navigation
+   =================================================== */
+
+::deep .gp-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
+
+::deep .gp-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: var(--gp-font);
+    letter-spacing: -0.005em;
+    transition: background var(--gp-transition), color var(--gp-transition), transform var(--gp-transition);
+    white-space: nowrap;
+    overflow: hidden;
+    position: relative;
+}
+
+::deep .gp-nav-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+::deep .gp-nav-item.active {
+    background: var(--gp-gradient);
+    color: #FFFFFF;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+}
+
+::deep .gp-nav-item.active:hover {
+    transform: none;
+}
+
+::deep .gp-nav-item .material-icons {
+    font-size: 1.125rem;
+    flex-shrink: 0;
+    transition: transform var(--gp-transition);
+}
+
+::deep .gp-nav-item:hover .material-icons {
+    transform: scale(1.1);
+}
+
+::deep .gp-nav-label {
+    opacity: 1;
+    transition: opacity var(--gp-transition);
+    white-space: nowrap;
+}
+
+::deep .gp-sidebar-collapsed .gp-nav-label {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+}
+
+::deep .gp-sidebar-collapsed .gp-nav-item {
+    justify-content: center;
+    padding: 10px;
+}
+
 
 .top-row {
     min-height: 3.5rem;

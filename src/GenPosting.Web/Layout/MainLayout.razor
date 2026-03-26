@@ -1,63 +1,210 @@
 ﻿@inherits LayoutComponentBase
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+
+<MudThemeProvider @ref="_mudThemeProvider" Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="gp-shell @(_isDarkMode ? "gp-dark" : "") @(_collapsed ? "gp-sidebar-collapsed" : "")">
+
+    <!-- Sidebar -->
+    <aside class="gp-sidebar">
+
+        <!-- Header / Logo -->
+        <div class="gp-sidebar-header">
+            <div class="gp-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="10" fill="url(#logoGrad)"/>
+                    <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="16" cy="22" r="1.5" fill="white"/>
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#7C3AED"/>
+                            <stop offset="1" stop-color="#EC4899"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="gp-logo-text">GenPosting</span>
+            </div>
+            <button class="gp-collapse-btn" @onclick="ToggleCollapse" title="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span class="material-icons">@(_collapsed ? "chevron_right" : "chevron_left")</span>
+            </button>
+        </div>
+
+        <!-- Compose CTA -->
+        <div class="gp-sidebar-compose">
+            <a href="/create" class="gp-compose-btn">
+                <span class="material-icons">edit_note</span>
+                <span class="gp-compose-label">Compose</span>
+            </a>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="gp-sidebar-nav">
+            <NavMenu IsCollapsed="_collapsed" />
+        </nav>
+
+        <!-- Footer -->
+        <div class="gp-sidebar-footer">
+            <a href="/settings" class="gp-footer-item @(IsActive("settings") ? "active" : "")">
+                <span class="material-icons">manage_accounts</span>
+                <span class="gp-nav-label">Settings</span>
+            </a>
+            <button class="gp-footer-item gp-theme-toggle" @onclick="ToggleDarkMode" title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")">
+                <span class="material-icons">@(_isDarkMode ? "light_mode" : "dark_mode")</span>
+                <span class="gp-nav-label">@(_isDarkMode ? "Light mode" : "Dark mode")</span>
+            </button>
+        </div>
+
+    </aside>
+
+    <!-- Mobile overlay backdrop -->
+    @if (_mobileOpen)
+    {
+        <div class="gp-backdrop" @onclick="CloseMobile"></div>
+    }
+
+    <!-- Main content area -->
+    <main class="gp-content">
+        <!-- Mobile topbar -->
+        <header class="gp-mobile-bar">
+            <button class="gp-mobile-menu-btn" @onclick="ToggleMobile">
+                <span class="material-icons">menu</span>
+            </button>
+            <span class="gp-mobile-title">GenPosting</span>
+            <button class="gp-footer-item gp-theme-toggle gp-mobile-theme" @onclick="ToggleDarkMode">
+                <span class="material-icons">@(_isDarkMode ? "light_mode" : "dark_mode")</span>
+            </button>
+        </header>
+
+        <div class="gp-page-body">
+            @Body
+        </div>
+    </main>
+
+</div>
+
+@code {
+    bool _collapsed = false;
+    bool _isDarkMode;
+    bool _mobileOpen;
+    MudThemeProvider _mudThemeProvider = null!;
+
+    MudTheme _theme = new MudTheme
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#7C3AED",
+            PrimaryDarken = "#5B21B6",
+            PrimaryLighten = "#9F67FF",
+            Secondary = "#EC4899",
+            Tertiary = "#3B82F6",
+            Success = "#10B981",
+            Error = "#EF4444",
+            Warning = "#F59E0B",
+            Info = "#3B82F6",
+            Background = "#F0F2F8",
+            BackgroundGray = "#E8EBF4",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#1C1C2E",
+            AppbarText = "rgba(255,255,255,0.9)",
+            DrawerBackground = "#1C1C2E",
+            DrawerText = "rgba(255,255,255,0.85)",
+            DrawerIcon = "rgba(255,255,255,0.6)",
+            TextPrimary = "#1A1A2E",
+            TextSecondary = "rgba(26,26,46,0.65)",
+            ActionDefault = "#6B7280",
+            ActionDisabled = "rgba(0,0,0,0.26)",
+            Divider = "rgba(0,0,0,0.08)",
+            TableLines = "rgba(0,0,0,0.06)",
+            LinesInputs = "rgba(0,0,0,0.15)",
+            OverlayDark = "rgba(0,0,0,0.5)",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#9F67FF",
+            PrimaryDarken = "#7C3AED",
+            PrimaryLighten = "#C4B5FD",
+            Secondary = "#F472B6",
+            Success = "#34D399",
+            Error = "#F87171",
+            Warning = "#FCD34D",
+            Info = "#60A5FA",
+            Background = "#0F0F1A",
+            BackgroundGray = "#0A0A14",
+            Surface = "#1A1A2E",
+            AppbarBackground = "#0D0D17",
+            DrawerBackground = "#0D0D17",
+            DrawerText = "rgba(255,255,255,0.9)",
+            TextPrimary = "rgba(255,255,255,0.92)",
+            TextSecondary = "rgba(255,255,255,0.55)",
+            Divider = "rgba(255,255,255,0.08)",
+            TableLines = "rgba(255,255,255,0.06)",
+            LinesInputs = "rgba(255,255,255,0.15)",
+            OverlayDark = "rgba(0,0,0,0.7)",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = ["Inter", "system-ui", "-apple-system", "sans-serif"],
+                FontSize = "0.9375rem",
+                FontWeight = "400",
+                LineHeight = "1.5",
+                LetterSpacing = "-0.01em"
+            },
+            H1 = new H1Typography { FontSize = "2.25rem", FontWeight = "800", LineHeight = "1.2", LetterSpacing = "-0.03em" },
+            H2 = new H2Typography { FontSize = "1.875rem", FontWeight = "700", LineHeight = "1.25", LetterSpacing = "-0.025em" },
+            H3 = new H3Typography { FontSize = "1.5rem",   FontWeight = "700", LineHeight = "1.3",  LetterSpacing = "-0.02em" },
+            H4 = new H4Typography { FontSize = "1.25rem",  FontWeight = "700", LineHeight = "1.35", LetterSpacing = "-0.015em" },
+            H5 = new H5Typography { FontSize = "1.125rem", FontWeight = "600", LineHeight = "1.4",  LetterSpacing = "-0.01em" },
+            H6 = new H6Typography { FontSize = "1rem",     FontWeight = "600", LineHeight = "1.4",  LetterSpacing = "-0.005em" },
+            Body1 = new Body1Typography { FontSize = "0.9375rem", FontWeight = "400", LineHeight = "1.6" },
+            Body2 = new Body2Typography { FontSize = "0.8125rem", FontWeight = "400", LineHeight = "1.5" },
+            Button = new ButtonTypography { FontSize = "0.875rem", FontWeight = "600", LetterSpacing = "0.01em" },
+            Caption = new CaptionTypography { FontSize = "0.75rem", FontWeight = "400", LineHeight = "1.4" },
+            Overline = new OverlineTypography { FontSize = "0.6875rem", FontWeight = "600", LetterSpacing = "0.08em" },
+        },
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var savedDark = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "gp_darkMode");
+            _isDarkMode = savedDark == "true" || (savedDark == null && await _mudThemeProvider.GetSystemDarkModeAsync());
+
+            var savedCollapsed = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "gp_sidebarCollapsed");
+            _collapsed = savedCollapsed == "true";
+
+            StateHasChanged();
+        }
+    }
+
+    void ToggleCollapse()
+    {
+        _collapsed = !_collapsed;
+        _ = JSRuntime.InvokeVoidAsync("localStorage.setItem", "gp_sidebarCollapsed", _collapsed.ToString().ToLower());
+    }
+
+    void ToggleMobile() => _mobileOpen = !_mobileOpen;
+    void CloseMobile() => _mobileOpen = false;
+
+    async Task ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "gp_darkMode", _isDarkMode.ToString().ToLower());
+    }
+
+    bool IsActive(string segment) => Nav.Uri.Contains($"/{segment}", StringComparison.OrdinalIgnoreCase);
+}
+
 
 <MudThemeProvider @ref="_mudThemeProvider" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Title="Toggle navigation" />
-        <MudText Typo="Typo.h5" Class="ml-2" Style="font-weight: 700; letter-spacing: -0.5px;">GenPosting</MudText>
-        <MudSpacer />
-        <MudTooltip Text="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")">
-            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                           Color="Color.Inherit"
-                           OnClick="ToggleDarkMode" />
-        </MudTooltip>
-    </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
-        <NavMenu />
-    </MudDrawer>
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-            @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
 
-@code {
-    bool _drawerOpen = true;
-    bool _isDarkMode;
-    MudThemeProvider _mudThemeProvider = null!;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var savedDarkMode = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "genposting_darkMode");
-            if (savedDarkMode != null)
-                _isDarkMode = savedDarkMode == "true";
-            else
-                _isDarkMode = await _mudThemeProvider.GetSystemDarkModeAsync();
-
-            var savedDrawer = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "genposting_drawerOpen");
-            _drawerOpen = savedDrawer != "false";
-
-            StateHasChanged();
-        }
-    }
-
-    void ToggleDrawer()
-    {
-        _drawerOpen = !_drawerOpen;
-        _ = JSRuntime.InvokeVoidAsync("localStorage.setItem", "genposting_drawerOpen", _drawerOpen.ToString().ToLower());
-    }
-
-    async Task ToggleDarkMode()
-    {
-        _isDarkMode = !_isDarkMode;
-        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "genposting_darkMode", _isDarkMode.ToString().ToLower());
-    }
-}

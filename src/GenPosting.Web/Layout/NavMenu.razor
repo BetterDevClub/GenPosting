@@ -1,9 +1,35 @@
-﻿<MudNavMenu>
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-    <MudNavLink Href="create" Icon="@Icons.Material.Filled.EditNote">Compose</MudNavLink>
-    <MudNavLink Href="calendar" Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
-    <MudNavLink Href="inbox" Icon="@Icons.Material.Filled.Inbox">Inbox</MudNavLink>
-    <MudNavLink Href="analytics" Icon="@Icons.Material.Filled.BarChart">Analytics</MudNavLink>
-    <MudDivider Class="my-2" />
-    <MudNavLink Href="settings" Icon="@Icons.Material.Filled.ManageAccounts">Settings</MudNavLink>
-</MudNavMenu>
+@inject NavigationManager Nav
+
+@code {
+    [Parameter] public bool IsCollapsed { get; set; }
+
+    bool IsActive(string href)
+    {
+        var uri = Nav.Uri;
+        if (href == "")
+            return uri == Nav.BaseUri || uri.TrimEnd('/') == Nav.BaseUri.TrimEnd('/');
+        return uri.Contains($"/{href}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    string ItemClass(string href) => $"gp-nav-item {(IsActive(href) ? "active" : "")}";
+}
+
+<div class="gp-nav-list">
+    <a href="" class="@ItemClass("")">
+        <span class="material-icons">dashboard</span>
+        <span class="gp-nav-label">Dashboard</span>
+    </a>
+    <a href="calendar" class="@ItemClass("calendar")">
+        <span class="material-icons">calendar_month</span>
+        <span class="gp-nav-label">Calendar</span>
+    </a>
+    <a href="inbox" class="@ItemClass("inbox")">
+        <span class="material-icons">inbox</span>
+        <span class="gp-nav-label">Inbox</span>
+    </a>
+    <a href="analytics" class="@ItemClass("analytics")">
+        <span class="material-icons">bar_chart</span>
+        <span class="gp-nav-label">Analytics</span>
+    </a>
+</div>
+

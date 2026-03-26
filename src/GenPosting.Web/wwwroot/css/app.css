@@ -1,6 +1,223 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/* ===================================================
+   GenPosting — "Dark Prism" Design System
+   =================================================== */
+
+/* ---------- CSS Custom Properties ---------- */
+:root {
+    --gp-sidebar-bg: #1C1C2E;
+    --gp-sidebar-bg-dark: #0D0D17;
+    --gp-sidebar-width: 260px;
+    --gp-sidebar-collapsed: 64px;
+    --gp-accent: #7C3AED;
+    --gp-accent-light: #9F67FF;
+    --gp-accent-dark: #5B21B6;
+    --gp-gradient: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+    --gp-gradient-compose: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+    --gp-gradient-linkedin: linear-gradient(135deg, #0A66C2, #1e88e5);
+    --gp-gradient-instagram: linear-gradient(135deg, #E1306C, #f06292);
+    --gp-gradient-facebook: linear-gradient(135deg, #1877F2, #42a5f5);
+    --gp-success: #10B981;
+    --gp-error: #EF4444;
+    --gp-warning: #F59E0B;
+    --gp-content-bg: #F0F2F8;
+    --gp-card-bg: #FFFFFF;
+    --gp-card-border: rgba(0,0,0,0.06);
+    --gp-card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+    --gp-card-shadow-hover: 0 4px 12px rgba(124,58,237,0.12), 0 8px 32px rgba(0,0,0,0.08);
+    --gp-radius: 12px;
+    --gp-radius-lg: 16px;
+    --gp-radius-pill: 50px;
+    --gp-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --gp-font: 'Inter', system-ui, -apple-system, sans-serif;
+    --gp-nav-item-h: #FFFFFF1A;
+    --gp-nav-item-active: var(--gp-gradient);
+    --gp-text-sidebar: rgba(255, 255, 255, 0.85);
+    --gp-text-sidebar-muted: rgba(255, 255, 255, 0.45);
 }
+
+/* ---------- Base ---------- */
+html, body {
+    font-family: var(--gp-font);
+    background-color: var(--gp-content-bg);
+    color: #1a1a2e;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.25); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.5); }
+
+/* ---------- Glassmorphism card ---------- */
+.gp-glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* ---------- Gradient text ---------- */
+.gp-gradient-text {
+    background: var(--gp-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ---------- Card hover lift ---------- */
+.gp-card-hover {
+    transition: transform var(--gp-transition), box-shadow var(--gp-transition);
+}
+.gp-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--gp-card-shadow-hover);
+}
+
+/* ---------- Page fade-in ---------- */
+@keyframes gpFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gp-page {
+    animation: gpFadeIn 250ms ease forwards;
+}
+
+/* ---------- Gradient backgrounds for stat cards ---------- */
+.gp-stat-scheduled { background: linear-gradient(135deg, #7C3AED22 0%, #6366F122 100%); border-top: 3px solid #7C3AED; }
+.gp-stat-published  { background: linear-gradient(135deg, #10B98122 0%, #34d39922 100%); border-top: 3px solid #10B981; }
+.gp-stat-failed     { background: linear-gradient(135deg, #EF444422 0%, #f8717122 100%); border-top: 3px solid #EF4444; }
+.gp-stat-connected  { background: linear-gradient(135deg, #3B82F622 0%, #6366f122 100%); border-top: 3px solid #3B82F6; }
+
+/* ---------- Platform chips ---------- */
+.gp-chip-linkedin  { background: #0A66C2 !important; color: white !important; }
+.gp-chip-instagram { background: #E1306C !important; color: white !important; }
+.gp-chip-facebook  { background: #1877F2 !important; color: white !important; }
+
+/* ---------- Section header ---------- */
+.gp-section-title {
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+    color: #1a1a2e;
+    margin-bottom: 16px;
+}
+
+/* ---------- MudBlazor overrides — match new design system ---------- */
+.mud-paper {
+    border-radius: var(--gp-radius) !important;
+    box-shadow: var(--gp-card-shadow) !important;
+    border: 1px solid var(--gp-card-border) !important;
+}
+
+.mud-button-root.mud-button-filled {
+    border-radius: var(--gp-radius-pill) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em;
+}
+
+.mud-button-root.mud-button-outlined {
+    border-radius: var(--gp-radius-pill) !important;
+    font-weight: 600 !important;
+}
+
+.mud-chip {
+    border-radius: var(--gp-radius-pill) !important;
+    font-weight: 500 !important;
+}
+
+.mud-input-outlined .mud-input-slot {
+    border-radius: var(--gp-radius) !important;
+}
+
+.mud-tabs .mud-tab {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.mud-main-content {
+    background-color: var(--gp-content-bg) !important;
+}
+
+/* Dark mode adjustments */
+.mud-theme-dark .mud-paper {
+    border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* ---------- Blazor error UI ---------- */
+#blazor-error-ui {
+    color-scheme: light only;
+    background: #EF4444;
+    color: white;
+    bottom: 0;
+    box-shadow: 0 -2px 8px rgba(239,68,68,0.3);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.75rem 1.5rem;
+    position: fixed;
+    width: 100%;
+    z-index: 9999;
+    font-family: var(--gp-font);
+    font-weight: 500;
+    border-radius: 0;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* ---------- Loading progress ---------- */
+.loading-progress {
+    position: absolute;
+    display: block;
+    width: 8rem;
+    height: 8rem;
+    inset: 20vh 0 auto 0;
+    margin: 0 auto;
+}
+
+.loading-progress circle {
+    fill: none;
+    stroke: rgba(124,58,237,0.15);
+    stroke-width: 0.6rem;
+    transform-origin: 50% 50%;
+    transform: rotate(-90deg);
+}
+
+.loading-progress circle:last-child {
+    stroke: #7C3AED;
+    stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
+    transition: stroke-dasharray 0.05s ease-in-out;
+}
+
+.loading-progress-text {
+    position: absolute;
+    text-align: center;
+    font-weight: 700;
+    font-family: var(--gp-font);
+    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
+    color: #7C3AED;
+}
+
+.loading-progress-text:after {
+    content: var(--blazor-load-percentage-text, "Loading");
+}
+
+/* ---------- Misc ---------- */
+h1:focus { outline: none; }
+
+.valid.modified:not([type=checkbox]) { outline: 1px solid var(--gp-success); }
+.invalid { outline: 1px solid var(--gp-error); }
+.validation-message { color: var(--gp-error); font-size: 0.8rem; }
+
+code { color: #c02d76; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
 
 h1:focus {
     outline: none;
