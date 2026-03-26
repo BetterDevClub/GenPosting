@@ -588,14 +588,10 @@ public class FacebookService : IFacebookService
         foreach (var v in metric.Values)
         {
             int val = 0;
-            if (v.Value is JsonElement je && je.ValueKind == JsonValueKind.Number)
-            {
-                val = je.GetInt32();
-            }
-            else if (int.TryParse(v.Value?.ToString(), out int i))
-            {
+            if (v.Value.ValueKind == JsonValueKind.Number)
+                val = v.Value.GetInt32();
+            else if (v.Value.ValueKind == JsonValueKind.String && int.TryParse(v.Value.GetString(), out int i))
                 val = i;
-            }
             
             total += val;
             
@@ -614,14 +610,10 @@ public class FacebookService : IFacebookService
         if (metric?.Values == null || !metric.Values.Any()) return 0;
 
         var value = metric.Values.First().Value;
-        if (value is JsonElement je && je.ValueKind == JsonValueKind.Number)
-        {
-            return je.GetInt32();
-        }
-        if (int.TryParse(value?.ToString(), out int i))
-        {
+        if (value.ValueKind == JsonValueKind.Number)
+            return value.GetInt32();
+        if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out int i))
             return i;
-        }
         return 0;
     }
 
@@ -800,7 +792,7 @@ public class FacebookService : IFacebookService
     private class FbInsightValue
     {
         [JsonPropertyName("value")]
-        public object Value { get; set; } = new();
+        public JsonElement Value { get; set; }
 
         [JsonPropertyName("end_time")]
         public string EndTime { get; set; } = string.Empty;

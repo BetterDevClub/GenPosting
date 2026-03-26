@@ -28,6 +28,10 @@ public record CreateLinkedInPostRequest(
 );
 public record LinkedInPostCreatedResponse(string Id, bool IsScheduled = false);
 
+// Separate response types for publish vs schedule outcomes
+public record PostPublishedResponse(string PlatformPostId);
+public record PostScheduledResponse(Guid ScheduledPostId);
+
 public record LinkedInUploadResponse(string AssetUrn);
 
 public record LinkedInProfileDto(string Name, string? PictureUrl);
