@@ -1,7 +1,21 @@
 @inject NavigationManager Nav
+@implements IDisposable
 
 @code {
     [Parameter] public bool IsCollapsed { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 
     bool IsActive(string href)
     {

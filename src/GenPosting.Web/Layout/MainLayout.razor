@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Nav
+@implements IDisposable
 
 <MudThemeProvider @ref="_mudThemeProvider" Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 
@@ -170,6 +171,8 @@
     {
         if (firstRender)
         {
+            Nav.LocationChanged += OnLocationChanged;
+
             var savedDark = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "gp_darkMode");
             _isDarkMode = savedDark == "true" || (savedDark == null && await _mudThemeProvider.GetSystemDarkModeAsync());
 
@@ -178,6 +181,14 @@
 
             StateHasChanged();
         }
+    }
+
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
     }
 
     void ToggleCollapse()
