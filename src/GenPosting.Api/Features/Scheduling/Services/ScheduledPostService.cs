@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GenPosting.Api.Features.Scheduling.Models;
+using GenPosting.Shared.Enums;
 
 namespace GenPosting.Api.Features.Scheduling.Services;
 
@@ -55,7 +56,7 @@ public class InMemoryScheduledPostService : IScheduledPostService
     {
         var now = DateTimeOffset.UtcNow;
         var due = _posts.Values
-            .Where(p => !p.IsPublished && p.Status == "Pending" && p.ScheduledTime <= now)
+            .Where(p => !p.IsPublished && p.Status == ScheduledPostStatus.Pending && p.ScheduledTime <= now)
             .ToList();
         return Task.FromResult(due);
     }
@@ -65,7 +66,7 @@ public class InMemoryScheduledPostService : IScheduledPostService
         if (_posts.TryGetValue(id, out var post))
         {
             post.IsPublished = true;
-            post.Status = "Published";
+            post.Status = ScheduledPostStatus.Published;
         }
         return Task.CompletedTask;
     }
@@ -74,7 +75,8 @@ public class InMemoryScheduledPostService : IScheduledPostService
     {
         if (_posts.TryGetValue(id, out var post))
         {
-            post.Status = $"Failed: {error}";
+            post.Status = ScheduledPostStatus.Failed;
+            post.FailureReason = error;
         }
         return Task.CompletedTask;
     }
