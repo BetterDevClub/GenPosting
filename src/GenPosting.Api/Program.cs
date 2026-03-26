@@ -21,7 +21,7 @@ builder.Services.AddCarter();
 builder.Services.AddSingleton<IBlobStorageService, AzureBlobStorageService>();
 
 // Register LinkedIn Feature Services
-builder.Services.Configure<LinkedInSettings>(builder.Configuration.GetSection("LinkedIn"));
+builder.Services.Configure<LinkedInSettings>(builder.Configuration.GetSection(LinkedInSettings.SectionName));
 builder.Services.AddHttpClient<ILinkedInService, LinkedInService>();
 
 // Register Scheduling Services
