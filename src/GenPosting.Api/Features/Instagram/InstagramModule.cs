@@ -6,6 +6,7 @@ using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
 using GenPosting.Shared.Enums; // For SocialPlatform
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace GenPosting.Api.Features.Instagram;
 
@@ -54,7 +55,7 @@ public class InstagramModule : ICarterModule
             var caption = form["caption"];
             var postTypeStr = form["postType"];
             var scheduledForStr = form["scheduledFor"];
-            var comments = form["comments"].ToString(); // Expecting comma/newline separated or simply a list if needed, usually passed as string
+            var comments = form["comments"].ToString();
             var file = form.Files["file"];
 
             if (!Enum.TryParse<InstagramPostType>(postTypeStr, out var postType))
@@ -71,16 +72,18 @@ public class InstagramModule : ICarterModule
 
             if (scheduledFor.HasValue && scheduledFor.Value <= DateTimeOffset.UtcNow)
                 return Results.BadRequest("Scheduled time must be in the future.");
-            // Or better, let the UI send raw text, and we split by newline if we want multiple comments? 
-            // For now let's assume raw text is one comment, or if we want multiple, we need a better convention.
-            // Let's assume the UI sends a JSON string or we split by a delimiter.
-            // Let's go with: splitting by newline for multiple comments
+
             List<string>? commentsList = null;
             if (!string.IsNullOrEmpty(comments))
             {
-                commentsList = comments.Contains("|||") // Using a safer delimiter if possible
-                    ? comments.Split("|||", StringSplitOptions.RemoveEmptyEntries).ToList()
-                    : new List<string> { comments };
+                try
+                {
+                    commentsList = JsonSerializer.Deserialize<List<string>>(comments);
+                }
+                catch (JsonException)
+                {
+                    return Results.BadRequest("comments must be a JSON array of strings, e.g. [\"First comment\",\"Second comment\"]");
+                }
             }
 
             // Scheduling Logic

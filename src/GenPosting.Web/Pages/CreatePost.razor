@@ -750,8 +750,8 @@
         // Handle Multiple Comments
         if (_comments.Any())
         {
-            var joined = string.Join("|||", _comments);
-            content.Add(new StringContent(joined), "comments");
+            var commentsJson = System.Text.Json.JsonSerializer.Serialize(_comments);
+            content.Add(new StringContent(commentsJson), "comments");
         }
 
         if (scheduledAt.HasValue)
