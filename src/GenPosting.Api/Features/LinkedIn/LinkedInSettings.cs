@@ -2,6 +2,8 @@ namespace GenPosting.Api.Features.LinkedIn;
 
 public class LinkedInSettings
 {
+    public const string SectionName = "LinkedIn";
+
     public string ClientId { get; set; } = string.Empty;
     public string ClientSecret { get; set; } = string.Empty;
     public string Scope { get; set; } = "openid profile email";
