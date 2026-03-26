@@ -413,17 +413,6 @@ public class LinkedInService : ILinkedInService
         return (true, null, new LinkedInPostCreatedResponse("CREATED"));
     }
 
-    private object newDictionaryEntry(string urn) 
-    {
-        return new 
-        {
-            status = "READY",
-            description = new { text = "Media Content" },
-            media = urn,
-            title = new { text = "Media Content" }
-        };
-    }
-
     // Internal classes for JSON deserialization
     private record LinkedInTokenResponseInternal(string access_token, int expires_in);
     private record LinkedInUserInfoResponse(string sub, string name, string picture);

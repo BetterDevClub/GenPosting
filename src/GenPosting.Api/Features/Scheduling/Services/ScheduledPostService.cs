@@ -19,7 +19,7 @@ public interface IScheduledPostService
 public class InMemoryScheduledPostService : IScheduledPostService
 {
     // In a real app, use a Database (EF Core / Dapper)
-    private static readonly ConcurrentDictionary<Guid, ScheduledPost> _posts = new();
+    private readonly ConcurrentDictionary<Guid, ScheduledPost> _posts = new();
 
     public Task SchedulePostAsync(ScheduledPost post)
     {

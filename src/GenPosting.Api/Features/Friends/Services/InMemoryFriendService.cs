@@ -15,10 +15,8 @@ public class InMemoryFriendService : IFriendService
     public Task<FriendDto> AddAsync(FriendDto friend)
     {
         if (friend.Id == Guid.Empty)
-        {
             friend.Id = Guid.NewGuid();
-        }
-        
+
         _friends.TryAdd(friend.Id, friend);
         return Task.FromResult(friend);
     }
