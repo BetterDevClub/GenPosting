@@ -111,7 +111,7 @@ public class InstagramModule : ICarterModule
                      MediaUrns = new List<string> { mediaUrl }, // Blob name — fresh SAS generated at publish time
                      ScheduledTime = scheduledFor.Value,
                      ThumbnailUrl = mediaUrl,
-                     Status = "Pending",
+                     Status = ScheduledPostStatus.Pending,
                      Comments = commentsList
                  };
 

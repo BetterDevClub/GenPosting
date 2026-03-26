@@ -104,7 +104,7 @@ public class FacebookModule : ICarterModule
                     MediaUrns = mediaUrl != null ? new List<string> { mediaUrl } : new List<string>(), // Blob name
                     ScheduledTime = scheduledFor.Value,
                     ThumbnailUrl = mediaUrl,
-                    Status = "Pending"
+                    Status = ScheduledPostStatus.Pending
                 };
 
                 await scheduledService.SchedulePostAsync(scheduledPost);

@@ -21,5 +21,6 @@ public class ScheduledPost
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? ThumbnailUrl { get; set; }
     public bool IsPublished { get; set; } = false;
-    public string? Status { get; set; } = "Pending";
+    public ScheduledPostStatus Status { get; set; } = ScheduledPostStatus.Pending;
+    public string? FailureReason { get; set; }
 }

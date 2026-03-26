@@ -253,7 +253,7 @@
     {
         return _allScheduledPosts
             .Where(p => p.ScheduledTime.ToLocalTime().Date == day.Date &&
-                        (_activeFilter == "All" || p.Status == _activeFilter))
+                        (_activeFilter == "All" || p.Status.ToString() == _activeFilter))
             .OrderBy(p => p.ScheduledTime)
             .ToList();
     }
@@ -355,10 +355,10 @@
         _ => Icons.Material.Filled.Public
     };
 
-    private static RenderFragment GetStatusIndicator(string status) => status switch
+    private static RenderFragment GetStatusIndicator(ScheduledPostStatus status) => status switch
     {
-        "Published" => @<MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="color: #4CAF50; font-size: 0.9rem;" />,
-        "Failed" => @<MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Style="color: #f44336; font-size: 0.9rem;" />,
+        ScheduledPostStatus.Published => @<MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="color: #4CAF50; font-size: 0.9rem;" />,
+        ScheduledPostStatus.Failed => @<MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Style="color: #f44336; font-size: 0.9rem;" />,
         _ => @<span />,
     };
 }

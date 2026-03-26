@@ -1,5 +1,6 @@
 @page "/analytics"
 @using GenPosting.Shared.DTOs
+@using GenPosting.Shared.Enums
 @using GenPosting.Web.Services
 @inject HttpClient Http
 @inject ILinkedInStateService LinkedInState
@@ -97,8 +98,8 @@
                             </MudTd>
                             <MudTd DataLabel="Status">
                                 <MudChip T="string" Size="Size.Small"
-                                         Color="@(context.Status == "Published" ? Color.Success : context.Status == "Failed" ? Color.Error : Color.Default)">
-                                    @context.Status
+                                         Color="@(context.Status == ScheduledPostStatus.Published ? Color.Success : context.Status == ScheduledPostStatus.Failed ? Color.Error : Color.Default)">
+                                    @context.Status.ToString()
                                 </MudChip>
                             </MudTd>
                         </RowTemplate>

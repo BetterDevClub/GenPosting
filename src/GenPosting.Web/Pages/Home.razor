@@ -122,7 +122,7 @@ else
                                     @GetPlatformName(post.Platform) · @FormatScheduledTime(post.ScheduledTime)
                                 </div>
                             </div>
-                            <span class="gp-status-pill" style="@GetStatusStyle(post.Status)">@post.Status</span>
+                            <span class="gp-status-pill" style="@GetStatusStyle(post.Status)">@post.Status.ToString()</span>
                         </div>
                     }
                 }
@@ -196,13 +196,13 @@ else
         {
             var all = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("/api/linkedin/scheduled") ?? new();
             var now = DateTimeOffset.Now;
-            _upcomingPosts = all.Where(p => p.ScheduledTime > now && p.Status == "Pending")
+            _upcomingPosts = all.Where(p => p.ScheduledTime > now && p.Status == ScheduledPostStatus.Pending)
                                 .OrderBy(p => p.ScheduledTime)
                                 .Take(6)
                                 .ToList();
-            _scheduledCount = all.Count(p => p.Status == "Pending");
-            _publishedCount = all.Count(p => p.Status == "Published");
-            _failedCount = all.Count(p => p.Status == "Failed");
+            _scheduledCount = all.Count(p => p.Status == ScheduledPostStatus.Pending);
+            _publishedCount = all.Count(p => p.Status == ScheduledPostStatus.Published);
+            _failedCount = all.Count(p => p.Status == ScheduledPostStatus.Failed);
         }
         catch { }
         finally
@@ -239,10 +239,10 @@ else
         return local.ToString("d MMM, HH:mm");
     }
 
-    private static string GetStatusStyle(string status) => status switch
+    private static string GetStatusStyle(ScheduledPostStatus status) => status switch
     {
-        "Published" => "background: #10B981; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
-        "Failed"    => "background: #EF4444; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
+        ScheduledPostStatus.Published => "background: #10B981; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
+        ScheduledPostStatus.Failed    => "background: #EF4444; color: white; padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;",
         _           => "background: rgba(0,0,0,0.08); color: rgba(0,0,0,0.6); padding: 2px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;"
     };
 }

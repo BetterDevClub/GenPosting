@@ -10,7 +10,7 @@ public record ScheduledPostDto(
     string MediaType,
     List<string>? Comments,
     DateTimeOffset ScheduledTime,
-    string Status,
+    ScheduledPostStatus Status,
     string? ThumbnailUrl = null
 );
 
