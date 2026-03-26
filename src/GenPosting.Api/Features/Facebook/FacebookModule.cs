@@ -83,6 +83,7 @@ public class FacebookModule : ICarterModule
                 {
                     try
                     {
+                        // UploadMediaAsync returns the blob name; background service generates fresh SAS at publish time
                         mediaUrl = await service.UploadMediaAsync(stream, file.FileName);
                     }
                     catch (Exception ex)
@@ -100,7 +101,7 @@ public class FacebookModule : ICarterModule
                     FbPostType = postType,
                     FbTarget = target,
                     FbTargetId = targetId,
-                    MediaUrns = mediaUrl != null ? new List<string> { mediaUrl } : new List<string>(),
+                    MediaUrns = mediaUrl != null ? new List<string> { mediaUrl } : new List<string>(), // Blob name
                     ScheduledTime = scheduledFor.Value,
                     ThumbnailUrl = mediaUrl,
                     Status = "Pending"

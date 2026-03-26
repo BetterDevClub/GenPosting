@@ -161,7 +161,8 @@ public class FacebookService : IFacebookService
         {
             try
             {
-                mediaUrl = await UploadMediaAsync(fileStream, fileName);
+                var blobName = await UploadMediaAsync(fileStream, fileName);
+                mediaUrl = await _blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1));
                 Console.WriteLine($"[PublishPostAsync] Uploaded media to: {mediaUrl}");
             }
             catch (Exception ex)

@@ -25,19 +25,13 @@ public class AzureBlobStorageService : IBlobStorageService
     public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string contentType)
     {
         await _containerClient.CreateIfNotExistsAsync();
-        
-        // We do NOT need to set public access if we use SAS tokens.
-        // This makes it work even if "Allow Blob public access" is disabled on the account level.
 
-        // Use purely random name to avoid any special character issues in URLs
         var extension = Path.GetExtension(fileName);
-        if (string.IsNullOrEmpty(extension)) 
-        {
+        if (string.IsNullOrEmpty(extension))
             extension = contentType.Contains("video") ? ".mp4" : ".jpg";
-        }
 
-        var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-        var blobClient = _containerClient.GetBlobClient(uniqueFileName);
+        var blobName = $"{Guid.NewGuid()}{extension}";
+        var blobClient = _containerClient.GetBlobClient(blobName);
 
         var blobUploadOptions = new BlobUploadOptions
         {
@@ -46,16 +40,20 @@ public class AzureBlobStorageService : IBlobStorageService
 
         await blobClient.UploadAsync(fileStream, blobUploadOptions);
 
-        // Generate a SAS token valid for 1 hour (enough for Instagram to download it)
+        return blobName;
+    }
+
+    public Task<string> GetSasUrlAsync(string blobName, TimeSpan expiry)
+    {
+        var blobClient = _containerClient.GetBlobClient(blobName);
         var sasBuilder = new BlobSasBuilder
         {
             BlobContainerName = _containerClient.Name,
-            BlobName = uniqueFileName,
+            BlobName = blobName,
             Resource = "b",
-            ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
         };
         sasBuilder.SetPermissions(BlobSasPermissions.Read);
-
-        return blobClient.GenerateSasUri(sasBuilder).ToString();
+        return Task.FromResult(blobClient.GenerateSasUri(sasBuilder).ToString());
     }
 }

@@ -1,7 +1,8 @@
 using GenPosting.Api.Features.Instagram.Services;
 using GenPosting.Api.Features.Scheduling.Models;
 using GenPosting.Api.Features.Scheduling.Services;
-using GenPosting.Api.Features.LinkedIn.Services; // Keep for ILinkedInService
+using GenPosting.Api.Features.LinkedIn.Services;
+using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
 using GenPosting.Shared.Enums;
 
@@ -45,6 +46,7 @@ public class PostPublisherBackgroundService : BackgroundService
         var linkedInService = scope.ServiceProvider.GetRequiredService<ILinkedInService>();
         var instagramService = scope.ServiceProvider.GetRequiredService<IInstagramService>();
         var facebookService = scope.ServiceProvider.GetRequiredService<GenPosting.Api.Features.Facebook.Services.IFacebookService>();
+        var blobService = scope.ServiceProvider.GetRequiredService<IBlobStorageService>();
 
         var duePosts = await scheduledService.GetDuePostsAsync();
 
@@ -63,14 +65,16 @@ public class PostPublisherBackgroundService : BackgroundService
                 if (post.Platform == SocialPlatform.Instagram)
                 {
                     // Instagram Publishing Logic
-                    var mediaUrl = post.MediaUrns?.FirstOrDefault();
-                    if (string.IsNullOrEmpty(mediaUrl))
+                    var blobName = post.MediaUrns?.FirstOrDefault();
+                    if (string.IsNullOrEmpty(blobName))
                     {
                         success = false;
-                        error = "No media URL found for Instagram post.";
+                        error = "No media found for Instagram post.";
                     }
                     else
                     {
+                        // Regenerate a fresh SAS URL — the stored blob name never expires
+                        var mediaUrl = await blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1));
                         var igType = post.IgPostType ?? InstagramPostType.Post;
                         
                         var result = await instagramService.PublishPostWithUrlAsync(
@@ -90,7 +94,12 @@ public class PostPublisherBackgroundService : BackgroundService
                     // Facebook Publishing Logic
                     var fbType = post.FbPostType ?? FacebookPostType.Text;
                     var fbTarget = post.FbTarget ?? FacebookPostTarget.Profile;
-                    var mediaUrl = post.MediaUrns?.FirstOrDefault() ?? string.Empty;
+
+                    // Regenerate a fresh SAS URL if there's a stored blob name
+                    var blobName = post.MediaUrns?.FirstOrDefault();
+                    var mediaUrl = !string.IsNullOrEmpty(blobName)
+                        ? await blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1))
+                        : string.Empty;
 
                     var result = await facebookService.PublishPostWithUrlAsync(
                         post.AccessToken,
