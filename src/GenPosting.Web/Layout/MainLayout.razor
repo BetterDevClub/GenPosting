@@ -3,9 +3,6 @@
 @inject NavigationManager Nav
 
 <MudThemeProvider @ref="_mudThemeProvider" Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
 
 <div class="gp-shell @(_isDarkMode ? "gp-dark" : "") @(_collapsed ? "gp-sidebar-collapsed" : "")">
 
