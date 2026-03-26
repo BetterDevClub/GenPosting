@@ -35,7 +35,7 @@ public class LinkedInService : ILinkedInService
         return ($"{_settings.AuthUrl}?{queryString}", state);
     }
 
-    public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code)
+    public async Task<LinkedInTokenResponse?> ExchangeTokenAsync(string code, CancellationToken cancellationToken = default)
     {
         var paramsDict = new Dictionary<string, string>
         {
@@ -47,7 +47,7 @@ public class LinkedInService : ILinkedInService
         };
 
         var content = new FormUrlEncodedContent(paramsDict);
-        var response = await _httpClient.PostAsync(_settings.TokenUrl, content);
+        var response = await _httpClient.PostAsync(_settings.TokenUrl, content, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -72,7 +72,7 @@ public class LinkedInService : ILinkedInService
         return request;
     }
 
-    public async Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken)
+    public async Task<List<LinkedInPostDto>> GetPostsAsync(string accessToken, CancellationToken cancellationToken = default)
     {
         // NOTE: fetching posts (UGC) usually requires querying 'ugcPosts' or 'shares' with specific author URN.
         // First we need the user's URN (profile ID).
@@ -82,7 +82,7 @@ public class LinkedInService : ILinkedInService
         try 
         {
             var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest);
+            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
             var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
             if (userInfoResponse == null) return new List<LinkedInPostDto>();
             authorUrn = $"urn:li:person:{userInfoResponse.sub}";
@@ -101,7 +101,7 @@ public class LinkedInService : ILinkedInService
         try 
         {
             var postsRequest = CreateRequest(HttpMethod.Get, requestUrl, accessToken, withLinkedInHeaders: true);
-            var postsResp = await _httpClient.SendAsync(postsRequest);
+            var postsResp = await _httpClient.SendAsync(postsRequest, cancellationToken);
             var postsResponse = await postsResp.Content.ReadFromJsonAsync<LinkedInUgcPostsResponse>();
             
             // Map to DTO
@@ -119,12 +119,12 @@ public class LinkedInService : ILinkedInService
         }
     }
 
-    public async Task<LinkedInProfileDto?> GetProfileAsync(string accessToken)
+    public async Task<LinkedInProfileDto?> GetProfileAsync(string accessToken, CancellationToken cancellationToken = default)
     {
         try 
         {
             var request = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken);
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             var userInfo = await response.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
             return userInfo != null ? new LinkedInProfileDto(userInfo.name, userInfo.picture) : null;
         }
@@ -135,14 +135,14 @@ public class LinkedInService : ILinkedInService
         }
     }
 
-    public async Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo)
+    public async Task<LinkedInUploadResponse?> UploadMediaAsync(string accessToken, Stream fileStream, string contentType, bool isVideo, CancellationToken cancellationToken = default)
     {
         // 1. Get Author URN
         string authorUrn;
         try 
         {
             var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest);
+            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
             var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
             if (userInfoResponse == null) return null;
             authorUrn = $"urn:li:person:{userInfoResponse.sub}";
@@ -183,7 +183,7 @@ public class LinkedInService : ILinkedInService
             System.Text.Json.JsonSerializer.Serialize(initPayload),
             System.Text.Encoding.UTF8,
             "application/json");
-        var initResp = await _httpClient.SendAsync(initRequest);
+        var initResp = await _httpClient.SendAsync(initRequest, cancellationToken);
         if (!initResp.IsSuccessStatusCode) 
         {
              var err = await initResp.Content.ReadAsStringAsync();
@@ -219,7 +219,7 @@ public class LinkedInService : ILinkedInService
         
         // LinkedIn requires us to set Authorization header to empty or token is not needed for the upload URL as it is signed
         
-        var uploadResp = await uploadClient.PutAsync(uploadUrl, fileContent);
+        var uploadResp = await uploadClient.PutAsync(uploadUrl, fileContent, cancellationToken);
         if (!uploadResp.IsSuccessStatusCode)
         {
              _logger.LogError("[LinkedInService] Media Upload Failed: {StatusCode}", uploadResp.StatusCode);
@@ -229,9 +229,9 @@ public class LinkedInService : ILinkedInService
         return new LinkedInUploadResponse(assetUrn);
     }
 
-    public async Task<bool> AddCommentAsync(string accessToken, string postUrn, string commentText)
+    public async Task<bool> AddCommentAsync(string accessToken, string postUrn, string commentText, CancellationToken cancellationToken = default)
     {
-        var authorUrn = await GetAuthorUrnInternalAsync(accessToken);
+        var authorUrn = await GetAuthorUrnInternalAsync(accessToken, cancellationToken);
         if (authorUrn == null) return false;
 
         var payload = new 
@@ -252,7 +252,7 @@ public class LinkedInService : ILinkedInService
         request.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
         request.Headers.TransferEncodingChunked = false; // FIX: Prevent protocol violation
         
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -265,12 +265,12 @@ public class LinkedInService : ILinkedInService
         return true;
     }
 
-    private async Task<string?> GetAuthorUrnInternalAsync(string accessToken)
+    private async Task<string?> GetAuthorUrnInternalAsync(string accessToken, CancellationToken cancellationToken = default)
     {
         try 
         {
             var request = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken);
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             var userInfoResponse = await response.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
             return userInfoResponse != null ? $"urn:li:person:{userInfoResponse.sub}" : null;
         }
@@ -281,7 +281,7 @@ public class LinkedInService : ILinkedInService
         }
     }
 
-    public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE")
+    public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE", CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202401");
 
@@ -290,7 +290,7 @@ public class LinkedInService : ILinkedInService
         try 
         {
             var userInfoRequest = CreateRequest(HttpMethod.Get, $"{_settings.ApiUrl}/userinfo", accessToken, withLinkedInHeaders: true);
-            var userInfoResp = await _httpClient.SendAsync(userInfoRequest);
+            var userInfoResp = await _httpClient.SendAsync(userInfoRequest, cancellationToken);
             var userInfoResponse = await userInfoResp.Content.ReadFromJsonAsync<LinkedInUserInfoResponse>();
             if (userInfoResponse == null) return (false, "Failed to fetch user info", null);
             authorUrn = $"urn:li:person:{userInfoResponse.sub}";
@@ -381,7 +381,7 @@ public class LinkedInService : ILinkedInService
         
         // ----------------
 
-        var response = await _httpClient.SendAsync(requestMessage);
+        var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {

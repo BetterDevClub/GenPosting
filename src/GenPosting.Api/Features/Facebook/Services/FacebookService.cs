@@ -41,7 +41,7 @@ public class FacebookService : IFacebookService
         return $"https://www.facebook.com/{GraphApiVersion}/dialog/oauth?{queryString}";
     }
 
-    public async Task<FacebookTokenResponse?> ExchangeTokenAsync(string code, string redirectUri)
+    public async Task<FacebookTokenResponse?> ExchangeTokenAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
     {
         var tokenUrl = $"https://graph.facebook.com/{GraphApiVersion}/oauth/access_token?" +
                        $"client_id={_settings.ClientId}" +
@@ -49,7 +49,7 @@ public class FacebookService : IFacebookService
                        $"&client_secret={_settings.ClientSecret}" +
                        $"&code={code}";
 
-        var response = await _httpClient.GetAsync(tokenUrl);
+        var response = await _httpClient.GetAsync(tokenUrl, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -63,7 +63,7 @@ public class FacebookService : IFacebookService
 
         // Get User ID
         var meUrl = $"https://graph.facebook.com/me?access_token={tokenData.AccessToken}";
-        var meResponse = await _httpClient.GetAsync(meUrl);
+        var meResponse = await _httpClient.GetAsync(meUrl, cancellationToken);
         var meData = await meResponse.Content.ReadFromJsonAsync<FbUserDto>();
 
         return new FacebookTokenResponse(
@@ -73,10 +73,10 @@ public class FacebookService : IFacebookService
         );
     }
 
-    public async Task<FacebookUserDto?> GetProfileAsync(string accessToken, string userId)
+    public async Task<FacebookUserDto?> GetProfileAsync(string accessToken, string userId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{userId}?fields=id,name,email,picture{{url}}&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) return null;
 
@@ -86,10 +86,10 @@ public class FacebookService : IFacebookService
         return new FacebookUserDto(data.Id, data.Name, data.Email, data.Picture?.Data?.Url);
     }
 
-    public async Task<List<FacebookPageDto>> GetUserPagesAsync(string accessToken, string userId)
+    public async Task<List<FacebookPageDto>> GetUserPagesAsync(string accessToken, string userId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{userId}/accounts?fields=id,name,category,access_token,followers_count,fan_count,picture{{url}},cover{{source}}&access_token={accessToken}";
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) 
         {
@@ -119,7 +119,7 @@ public class FacebookService : IFacebookService
     }
 
     public async Task<(bool Success, string Error, string? PublishedId)> PublishPostWithUrlAsync(
-        string accessToken, string content, FacebookPostType type, string mediaUrl, FacebookPostTarget target, string? targetId)
+        string accessToken, string content, FacebookPostType type, string mediaUrl, FacebookPostTarget target, string? targetId, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -131,16 +131,16 @@ public class FacebookService : IFacebookService
             switch (type)
             {
                 case FacebookPostType.Text:
-                    return await PublishTextPostAsync(accessToken, endpoint, content);
+                    return await PublishTextPostAsync(accessToken, endpoint, content, cancellationToken);
                     
                 case FacebookPostType.Photo:
-                    return await PublishPhotoPostAsync(accessToken, endpoint, content, mediaUrl);
+                    return await PublishPhotoPostAsync(accessToken, endpoint, content, mediaUrl, cancellationToken);
                     
                 case FacebookPostType.Video:
-                    return await PublishVideoPostAsync(accessToken, endpoint, content, mediaUrl);
+                    return await PublishVideoPostAsync(accessToken, endpoint, content, mediaUrl, cancellationToken);
                     
                 case FacebookPostType.Story:
-                    return await PublishStoryAsync(accessToken, endpoint, mediaUrl);
+                    return await PublishStoryAsync(accessToken, endpoint, mediaUrl, cancellationToken);
                     
                 default:
                     return (false, "Unsupported post type", null);
@@ -153,12 +153,12 @@ public class FacebookService : IFacebookService
     }
 
     public async Task<(bool Success, string Error, string? PublishedId)> PublishPostAsync(
-        string accessToken, CreateFacebookPostRequest request, Stream? fileStream, string? fileName)
+        string accessToken, CreateFacebookPostRequest request, Stream? fileStream, string? fileName, CancellationToken cancellationToken = default)
     {
         // Handle album creation separately
         if (request.PostType == FacebookPostType.Album)
         {
-            return await PublishAlbumAsync(accessToken, request, fileStream, fileName);
+            return await PublishAlbumAsync(accessToken, request, fileStream, fileName, cancellationToken);
         }
 
         // Upload media if provided
@@ -193,12 +193,13 @@ public class FacebookService : IFacebookService
             request.PostType, 
             mediaUrl ?? string.Empty, 
             request.Target, 
-            request.TargetId
+            request.TargetId,
+            cancellationToken
         );
     }
 
     private async Task<(bool Success, string Error, string? PublishedId)> PublishTextPostAsync(
-        string accessToken, string endpoint, string message)
+        string accessToken, string endpoint, string message, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/feed";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -207,7 +208,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -221,7 +222,7 @@ public class FacebookService : IFacebookService
     }
 
     private async Task<(bool Success, string Error, string? PublishedId)> PublishPhotoPostAsync(
-        string accessToken, string endpoint, string message, string photoUrl)
+        string accessToken, string endpoint, string message, string photoUrl, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/photos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -231,7 +232,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -245,7 +246,7 @@ public class FacebookService : IFacebookService
     }
 
     private async Task<(bool Success, string Error, string? PublishedId)> PublishVideoPostAsync(
-        string accessToken, string endpoint, string description, string videoUrl)
+        string accessToken, string endpoint, string description, string videoUrl, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/videos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -255,7 +256,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -269,7 +270,7 @@ public class FacebookService : IFacebookService
     }
 
     private async Task<(bool Success, string Error, string? PublishedId)> PublishStoryAsync(
-        string accessToken, string endpoint, string mediaUrl)
+        string accessToken, string endpoint, string mediaUrl, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}/stories";
         var mediaType = mediaUrl.EndsWith(".mp4") ? "VIDEO" : "PHOTO";
@@ -280,7 +281,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -294,14 +295,14 @@ public class FacebookService : IFacebookService
     }
 
     private async Task<(bool Success, string Error, string? PublishedId)> PublishAlbumAsync(
-        string accessToken, CreateFacebookPostRequest request, Stream? fileStream, string? fileName)
+        string accessToken, CreateFacebookPostRequest request, Stream? fileStream, string? fileName, CancellationToken cancellationToken = default)
     {
         var endpoint = request.Target == FacebookPostTarget.Page && !string.IsNullOrEmpty(request.TargetId) 
             ? request.TargetId 
             : "me";
 
         // Create album
-        var albumId = await CreateAlbumAsync(accessToken, endpoint, "Album", request.Content);
+        var albumId = await CreateAlbumAsync(accessToken, endpoint, "Album", request.Content, cancellationToken);
         if (string.IsNullOrEmpty(albumId))
         {
             return (false, "Failed to create album", null);
@@ -310,13 +311,13 @@ public class FacebookService : IFacebookService
         // Add photos to album
         foreach (var photoUrl in request.MediaUrls)
         {
-            await AddPhotoToAlbumAsync(accessToken, albumId, photoUrl, null);
+            await AddPhotoToAlbumAsync(accessToken, albumId, photoUrl, null, cancellationToken);
         }
 
         return (true, string.Empty, albumId);
     }
 
-    public async Task<string> CreateAlbumAsync(string accessToken, string targetId, string name, string? description)
+    public async Task<string> CreateAlbumAsync(string accessToken, string targetId, string name, string? description, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{targetId}/albums";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -326,7 +327,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -339,7 +340,7 @@ public class FacebookService : IFacebookService
         return result?.Id ?? string.Empty;
     }
 
-    public async Task<bool> AddPhotoToAlbumAsync(string accessToken, string albumId, string photoUrl, string? caption)
+    public async Task<bool> AddPhotoToAlbumAsync(string accessToken, string albumId, string photoUrl, string? caption, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{albumId}/photos";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -349,11 +350,11 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage)
+    public async Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage, CancellationToken cancellationToken = default)
     {
         // For personal profile, use "me/feed" instead of "me/posts" as it works with basic permissions
         var endpoint = isPage ? $"{targetId}/feed" : "me/feed";
@@ -362,7 +363,7 @@ public class FacebookService : IFacebookService
         // Removed: reactions.summary(true), comments.summary(true), shares (require pages_read_engagement)
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
         
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -388,11 +389,11 @@ public class FacebookService : IFacebookService
         )).ToList() ?? new List<FacebookPostDto>();
     }
 
-    public async Task<FacebookPostDto?> GetPostAsync(string accessToken, string postId)
+    public async Task<FacebookPostDto?> GetPostAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{postId}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url,reactions.summary(true),comments.summary(true),shares&access_token={accessToken}";
         
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode) return null;
 
@@ -414,11 +415,11 @@ public class FacebookService : IFacebookService
         );
     }
 
-    public async Task<FacebookPostInsightsResponse?> GetPostInsightsAsync(string accessToken, string postId)
+    public async Task<FacebookPostInsightsResponse?> GetPostInsightsAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{postId}/insights?metric=post_impressions,post_engaged_users,post_reactions_by_type_total,post_clicks&access_token={accessToken}";
         
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -435,7 +436,7 @@ public class FacebookService : IFacebookService
         var clicks = GetMetricValue(result.Data, "post_clicks");
 
         // Get detailed post info for reactions/comments/shares
-        var post = await GetPostAsync(accessToken, postId);
+        var post = await GetPostAsync(accessToken, postId, cancellationToken);
 
         return new FacebookPostInsightsResponse(
             postId,
@@ -449,7 +450,7 @@ public class FacebookService : IFacebookService
         );
     }
 
-    public async Task<FacebookPageInsightsResponse?> GetPageInsightsAsync(string accessToken, string pageId, DateTime? from, DateTime? to)
+    public async Task<FacebookPageInsightsResponse?> GetPageInsightsAsync(string accessToken, string pageId, DateTime? from, DateTime? to, CancellationToken cancellationToken = default)
     {
         var since = (from ?? DateTime.Now.AddDays(-30)).ToUniversalTime();
         var until = (to ?? DateTime.Now).ToUniversalTime();
@@ -459,7 +460,7 @@ public class FacebookService : IFacebookService
 
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total,page_fans&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
         
-        var response = await _httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -478,7 +479,7 @@ public class FacebookService : IFacebookService
 
         // Get current fan count
         var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
-        var pageResponse = await _httpClient.GetAsync(pageUrl);
+        var pageResponse = await _httpClient.GetAsync(pageUrl, cancellationToken);
         var pageData = await pageResponse.Content.ReadFromJsonAsync<FbPageStatsDto>();
 
         return new FacebookPageInsightsResponse(
@@ -491,9 +492,9 @@ public class FacebookService : IFacebookService
         );
     }
 
-    public async Task<List<FacebookCommentDto>> GetRecentCommentsAsync(string accessToken, string targetId, bool isPage)
+    public async Task<List<FacebookCommentDto>> GetRecentCommentsAsync(string accessToken, string targetId, bool isPage, CancellationToken cancellationToken = default)
     {
-        var posts = await GetPostsAsync(accessToken, targetId, isPage);
+        var posts = await GetPostsAsync(accessToken, targetId, isPage, cancellationToken);
         var allComments = new List<FacebookCommentDto>();
 
         foreach (var post in posts.Take(10))
@@ -502,7 +503,7 @@ public class FacebookService : IFacebookService
             
             try
             {
-                var response = await _httpClient.GetAsync(url);
+                var response = await _httpClient.GetAsync(url, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<FbCommentsResponse>();
@@ -530,7 +531,7 @@ public class FacebookService : IFacebookService
         ).ToList();
     }
 
-    public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message)
+    public async Task<bool> ReplyToCommentAsync(string accessToken, string commentId, string message, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}/comments";
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -539,7 +540,7 @@ public class FacebookService : IFacebookService
             { "access_token", accessToken }
         });
 
-        var response = await _httpClient.PostAsync(url, content);
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -551,10 +552,10 @@ public class FacebookService : IFacebookService
         return true;
     }
 
-    public async Task<bool> DeleteCommentAsync(string accessToken, string commentId)
+    public async Task<bool> DeleteCommentAsync(string accessToken, string commentId, CancellationToken cancellationToken = default)
     {
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{commentId}?access_token={accessToken}";
-        var response = await _httpClient.DeleteAsync(url);
+        var response = await _httpClient.DeleteAsync(url, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {

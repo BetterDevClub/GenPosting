@@ -48,7 +48,7 @@ public class PostPublisherBackgroundService : BackgroundService
         var facebookService = scope.ServiceProvider.GetRequiredService<GenPosting.Api.Features.Facebook.Services.IFacebookService>();
         var blobService = scope.ServiceProvider.GetRequiredService<IBlobStorageService>();
 
-        var duePosts = await scheduledService.GetDuePostsAsync();
+        var duePosts = await scheduledService.GetDuePostsAsync(stoppingToken);
 
         foreach (var post in duePosts)
         {
@@ -82,7 +82,8 @@ public class PostPublisherBackgroundService : BackgroundService
                             post.PlatformUserId,
                             post.Content,
                             igType,
-                            mediaUrl
+                            mediaUrl,
+                            stoppingToken
                         );
                         success = result.Success;
                         error = result.Error;
@@ -107,7 +108,8 @@ public class PostPublisherBackgroundService : BackgroundService
                         fbType,
                         mediaUrl,
                         fbTarget,
-                        post.FbTargetId
+                        post.FbTargetId,
+                        stoppingToken
                     );
                     success = result.Success;
                     error = result.Error;
@@ -120,7 +122,8 @@ public class PostPublisherBackgroundService : BackgroundService
                         post.AccessToken,
                         post.Content,
                         post.MediaUrns,
-                        post.MediaType
+                        post.MediaType,
+                        stoppingToken
                     );
                     success = liSuccess;
                     error = liError;
@@ -130,7 +133,7 @@ public class PostPublisherBackgroundService : BackgroundService
                 if (!success)
                 {
                     _logger.LogError("Failed to publish post {PostId}: {Error}", post.Id, error);
-                    await scheduledService.MarkAsFailedAsync(post.Id, error ?? "Unknown error");
+                    await scheduledService.MarkAsFailedAsync(post.Id, error ?? "Unknown error", stoppingToken);
                     continue; 
                 }
 
@@ -143,11 +146,11 @@ public class PostPublisherBackgroundService : BackgroundService
                         {
                             if (post.Platform == SocialPlatform.Instagram)
                             {
-                                await instagramService.AddCommentAsync(post.AccessToken, publishedId, comment);
+                                await instagramService.AddCommentAsync(post.AccessToken, publishedId, comment, stoppingToken);
                             }
                             else if (post.Platform == SocialPlatform.LinkedIn)
                             {
-                                await linkedInService.AddCommentAsync(post.AccessToken, publishedId, comment);
+                                await linkedInService.AddCommentAsync(post.AccessToken, publishedId, comment, stoppingToken);
                             }
                             // Note: Facebook comments on posts require different API - not implementing here
                             
@@ -156,14 +159,14 @@ public class PostPublisherBackgroundService : BackgroundService
                     }
                 }
 
-                await scheduledService.MarkAsPublishedAsync(post.Id);
+                await scheduledService.MarkAsPublishedAsync(post.Id, stoppingToken);
                 _logger.LogInformation("Successfully published post {PostId}", post.Id);
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Exception publishing post {PostId}", post.Id);
-                await scheduledService.MarkAsFailedAsync(post.Id, ex.Message);
+                await scheduledService.MarkAsFailedAsync(post.Id, ex.Message, stoppingToken);
             }
         }
     }
