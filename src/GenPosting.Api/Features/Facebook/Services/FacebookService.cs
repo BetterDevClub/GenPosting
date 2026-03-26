@@ -110,7 +110,7 @@ public class FacebookService : IFacebookService
         )).ToList() ?? new List<FacebookPageDto>();
     }
 
-    public async Task<string> UploadMediaAsync(Stream fileStream, string fileName)
+    private async Task<string> UploadMediaAsync(Stream fileStream, string fileName)
     {
         var contentType = fileName.EndsWith(".mp4") ? "video/mp4" : "image/jpeg";
         return await _blobService.UploadFileAsync(fileStream, fileName, contentType);

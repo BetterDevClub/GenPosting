@@ -2,6 +2,7 @@ using Carter;
 using GenPosting.Api.Features.Facebook.Services;
 using GenPosting.Api.Features.Scheduling.Models;
 using GenPosting.Api.Features.Scheduling.Services;
+using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
 using GenPosting.Shared.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -42,7 +43,7 @@ public class FacebookModule : ICarterModule
             return Results.Ok(new FacebookPageListResponse(pages));
         });
 
-        group.MapPost("/post", async (HttpRequest request, IFacebookService service, IScheduledPostService scheduledService) =>
+        group.MapPost("/post", async (HttpRequest request, IFacebookService service, IScheduledPostService scheduledService, IBlobStorageService blobStorage) =>
         {
             if (!request.Headers.TryGetValue("X-Facebook-Token", out var token)) return Results.Unauthorized();
             if (!request.Headers.TryGetValue("X-Facebook-UserId", out var userId)) return Results.Unauthorized();
@@ -83,8 +84,8 @@ public class FacebookModule : ICarterModule
                 {
                     try
                     {
-                        // UploadMediaAsync returns the blob name; background service generates fresh SAS at publish time
-                        mediaUrl = await service.UploadMediaAsync(stream, file.FileName);
+                        var contentType = file.FileName.EndsWith(".mp4") ? "video/mp4" : "image/jpeg";
+                        mediaUrl = await blobStorage.UploadFileAsync(stream, file.FileName, contentType);
                     }
                     catch (Exception ex)
                     {

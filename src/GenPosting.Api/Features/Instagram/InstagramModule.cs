@@ -2,6 +2,7 @@ using Carter;
 using GenPosting.Api.Features.Instagram.Services;
 using GenPosting.Api.Features.Scheduling.Models; // For ScheduledPost
 using GenPosting.Api.Features.Scheduling.Services; // For IScheduledPostService
+using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
 using GenPosting.Shared.Enums; // For SocialPlatform
 using Microsoft.AspNetCore.Mvc;
@@ -42,7 +43,7 @@ public class InstagramModule : ICarterModule
             return result != null ? Results.Ok(result) : Results.NotFound("Could not fetch account insights.");
         });
 
-        group.MapPost("/post", async (HttpRequest request, IInstagramService service, IScheduledPostService scheduledService) =>
+        group.MapPost("/post", async (HttpRequest request, IInstagramService service, IScheduledPostService scheduledService, IBlobStorageService blobStorage) =>
         {
             if (!request.Headers.TryGetValue("X-Instagram-Token", out var token)) return Results.Unauthorized();
             if (!request.Headers.TryGetValue("X-Instagram-UserId", out var userId)) return Results.Unauthorized();
@@ -92,8 +93,8 @@ public class InstagramModule : ICarterModule
                  string mediaUrl;
                  try 
                  {
-                     // UploadMediaAsync returns the blob name; background service generates fresh SAS at publish time
-                     mediaUrl = await service.UploadMediaAsync(stream, file.FileName);
+                     var contentType = file.FileName.EndsWith(".mp4") ? "video/mp4" : "image/jpeg";
+                     mediaUrl = await blobStorage.UploadFileAsync(stream, file.FileName, contentType);
                  }
                  catch (Exception ex)
                  {
