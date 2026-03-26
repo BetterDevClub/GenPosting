@@ -1,4 +1,5 @@
 using Carter;
+using FluentValidation;
 using GenPosting.Api.Features.LinkedIn;
 using GenPosting.Api.Features.Scheduling.Background;
 using GenPosting.Api.Features.Scheduling.Services;
@@ -16,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddOpenApi();
 builder.Services.AddCarter();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // Shared Infrastructure
 builder.Services.AddMemoryCache();

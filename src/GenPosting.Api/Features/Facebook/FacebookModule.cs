@@ -1,4 +1,5 @@
 using Carter;
+using FluentValidation;
 using GenPosting.Api.Features.Facebook.Services;
 using GenPosting.Api.Features.Scheduling.Models;
 using GenPosting.Api.Features.Scheduling.Services;
@@ -22,8 +23,11 @@ public class FacebookModule : ICarterModule
             return Results.Ok(new FacebookAuthUrlResponse(url));
         });
 
-        group.MapPost("/exchange-token", async ([FromBody] FacebookExchangeTokenRequest request, IFacebookService service) =>
+        group.MapPost("/exchange-token", async ([FromBody] FacebookExchangeTokenRequest request, IFacebookService service, IValidator<FacebookExchangeTokenRequest> validator) =>
         {
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
             var token = await service.ExchangeTokenAsync(request.Code, request.RedirectUri);
             if (token == null) return Results.BadRequest("Failed to exchange token.");
             return Results.Ok(token);
@@ -161,9 +165,11 @@ public class FacebookModule : ICarterModule
             return Results.Ok(new FacebookCommentListResponse(comments));
         });
 
-        group.MapPost("/comments/{commentId}/reply", async (string commentId, [FromBody] ReplyToFacebookCommentRequest req, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service) =>
+        group.MapPost("/comments/{commentId}/reply", async (string commentId, [FromBody] ReplyToFacebookCommentRequest req, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service, IValidator<ReplyToFacebookCommentRequest> validator) =>
         {
             if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var validation = await validator.ValidateAsync(req);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             var success = await service.ReplyToCommentAsync(token, commentId, req.Message);
             return success ? Results.Ok() : Results.BadRequest("Failed to reply");
         });
@@ -175,9 +181,11 @@ public class FacebookModule : ICarterModule
             return success ? Results.Ok() : Results.BadRequest("Failed to delete comment");
         });
 
-        group.MapPost("/albums", async ([FromBody] CreateFacebookAlbumRequest req, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service) =>
+        group.MapPost("/albums", async ([FromBody] CreateFacebookAlbumRequest req, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service, IValidator<CreateFacebookAlbumRequest> validator) =>
         {
             if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var validation = await validator.ValidateAsync(req);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             
             var targetId = req.TargetPageId ?? "me";
             var albumId = await service.CreateAlbumAsync(token, targetId, req.Name, req.Description);

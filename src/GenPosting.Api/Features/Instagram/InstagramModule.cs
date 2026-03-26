@@ -1,4 +1,5 @@
 using Carter;
+using FluentValidation;
 using GenPosting.Api.Features.Instagram.Services;
 using GenPosting.Api.Features.Scheduling.Models; // For ScheduledPost
 using GenPosting.Api.Features.Scheduling.Services; // For IScheduledPostService
@@ -23,8 +24,10 @@ public class InstagramModule : ICarterModule
             return Results.Ok(new InstagramAuthUrlResponse(url, state));
         });
 
-        group.MapPost("/exchange-token", async ([FromBody] InstagramExchangeTokenRequest request, IInstagramService service) =>
+        group.MapPost("/exchange-token", async ([FromBody] InstagramExchangeTokenRequest request, IInstagramService service, IValidator<InstagramExchangeTokenRequest> validator) =>
         {
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             var token = await service.ExchangeTokenAsync(request.Code);
             if (token == null) return Results.BadRequest("Failed to exchange token.");
             return Results.Ok(token);
@@ -168,9 +171,11 @@ public class InstagramModule : ICarterModule
             return Results.Ok(new InstagramCommentListResponse(comments));
         });
 
-        group.MapPost("/comments/{commentId}/reply", async (string commentId, [FromBody] ReplyToCommentRequest req, [FromHeader(Name = "X-Instagram-Token")] string token, IInstagramService service) =>
+        group.MapPost("/comments/{commentId}/reply", async (string commentId, [FromBody] ReplyToCommentRequest req, [FromHeader(Name = "X-Instagram-Token")] string token, IInstagramService service, IValidator<ReplyToCommentRequest> validator) =>
         {
             if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var validation = await validator.ValidateAsync(req);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
             var success = await service.ReplyToCommentAsync(token, commentId, req.Message);
             return success ? Results.Ok() : Results.BadRequest("Failed to reply");
         });
