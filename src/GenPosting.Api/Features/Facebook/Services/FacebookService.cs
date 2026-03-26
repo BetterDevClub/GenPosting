@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using GenPosting.Api.Features.Facebook.Models;
 using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GenPosting.Api.Features.Facebook.Services;
@@ -13,12 +14,14 @@ public class FacebookService : IFacebookService
     private readonly HttpClient _httpClient;
     private readonly FacebookSettings _settings;
     private readonly IBlobStorageService _blobService;
+    private readonly ILogger<FacebookService> _logger;
 
-    public FacebookService(HttpClient httpClient, IOptions<FacebookSettings> settings, IBlobStorageService blobService)
+    public FacebookService(HttpClient httpClient, IOptions<FacebookSettings> settings, IBlobStorageService blobService, ILogger<FacebookService> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
         _blobService = blobService;
+        _logger = logger;
     }
 
     public string GetAuthorizationUrl(string redirectUri)
@@ -49,7 +52,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Facebook Token Exchange Failed: {error}");
+            _logger.LogError("Facebook Token Exchange Failed: {Error}", error);
             return null;
         }
 
@@ -88,7 +91,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode) 
         {
-            Console.WriteLine($"[GetUserPagesAsync] Failed: {await response.Content.ReadAsStringAsync()}");
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[GetUserPagesAsync] Failed: {Content}", content);
             return new List<FacebookPageDto>();
         }
 
@@ -163,7 +167,7 @@ public class FacebookService : IFacebookService
             {
                 var blobName = await UploadMediaAsync(fileStream, fileName);
                 mediaUrl = await _blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1));
-                Console.WriteLine($"[PublishPostAsync] Uploaded media to: {mediaUrl}");
+                _logger.LogInformation("[PublishPostAsync] Uploaded media to: {MediaUrl}", mediaUrl);
             }
             catch (Exception ex)
             {
@@ -206,7 +210,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[PublishTextPost] Failed: {error}");
+            _logger.LogError("[PublishTextPost] Failed: {Error}", error);
             return (false, "Failed to publish text post", null);
         }
 
@@ -230,7 +234,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[PublishPhotoPost] Failed: {error}");
+            _logger.LogError("[PublishPhotoPost] Failed: {Error}", error);
             return (false, "Failed to publish photo post", null);
         }
 
@@ -254,7 +258,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[PublishVideoPost] Failed: {error}");
+            _logger.LogError("[PublishVideoPost] Failed: {Error}", error);
             return (false, "Failed to publish video post", null);
         }
 
@@ -279,7 +283,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[PublishStory] Failed: {error}");
+            _logger.LogError("[PublishStory] Failed: {Error}", error);
             return (false, "Failed to publish story", null);
         }
 
@@ -324,7 +328,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[CreateAlbum] Failed: {await response.Content.ReadAsStringAsync()}");
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[CreateAlbum] Failed: {Content}", errorBody);
             return string.Empty;
         }
 
@@ -360,7 +365,7 @@ public class FacebookService : IFacebookService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[GetPosts] Failed: {errorContent}");
+            _logger.LogError("[GetPosts] Failed: {ErrorContent}", errorContent);
             return new List<FacebookPostDto>();
         }
 
@@ -415,7 +420,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[GetPostInsights] Failed: {await response.Content.ReadAsStringAsync()}");
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[GetPostInsights] Failed: {Content}", content);
             return null;
         }
 
@@ -455,7 +461,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[GetPageInsights] Failed: {await response.Content.ReadAsStringAsync()}");
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[GetPageInsights] Failed: {Content}", content);
             return null;
         }
 
@@ -534,7 +541,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[ReplyToComment] Failed: {await response.Content.ReadAsStringAsync()}");
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[ReplyToComment] Failed: {Content}", errorBody);
             return false;
         }
         
@@ -548,7 +556,8 @@ public class FacebookService : IFacebookService
         
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[DeleteComment] Failed: {await response.Content.ReadAsStringAsync()}");
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogError("[DeleteComment] Failed: {Content}", content);
             return false;
         }
         

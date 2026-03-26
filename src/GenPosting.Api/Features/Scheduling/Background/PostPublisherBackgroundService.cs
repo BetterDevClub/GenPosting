@@ -54,7 +54,7 @@ public class PostPublisherBackgroundService : BackgroundService
         {
             if (stoppingToken.IsCancellationRequested) break;
 
-            _logger.LogInformation($"Publishing scheduled post {post.Id} ({post.Platform}) scheduled for {post.ScheduledTime}");
+            _logger.LogInformation("Publishing scheduled post {PostId} ({Platform}) scheduled for {ScheduledTime}", post.Id, post.Platform, post.ScheduledTime);
 
             try
             {
@@ -129,7 +129,7 @@ public class PostPublisherBackgroundService : BackgroundService
 
                 if (!success)
                 {
-                    _logger.LogError($"Failed to publish post {post.Id}: {error}");
+                    _logger.LogError("Failed to publish post {PostId}: {Error}", post.Id, error);
                     await scheduledService.MarkAsFailedAsync(post.Id, error ?? "Unknown error");
                     continue; 
                 }
@@ -157,12 +157,12 @@ public class PostPublisherBackgroundService : BackgroundService
                 }
 
                 await scheduledService.MarkAsPublishedAsync(post.Id);
-                _logger.LogInformation($"Successfully published post {post.Id}");
+                _logger.LogInformation("Successfully published post {PostId}", post.Id);
 
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Exception publishing post {post.Id}");
+                _logger.LogError(ex, "Exception publishing post {PostId}", post.Id);
                 await scheduledService.MarkAsFailedAsync(post.Id, ex.Message);
             }
         }

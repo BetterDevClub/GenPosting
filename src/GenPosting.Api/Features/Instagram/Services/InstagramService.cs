@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using GenPosting.Api.Features.Instagram.Models;
 using GenPosting.Api.Services;
 using GenPosting.Shared.DTOs;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GenPosting.Api.Features.Instagram.Services;
@@ -13,12 +14,14 @@ public class InstagramService : IInstagramService
     private readonly HttpClient _httpClient;
     private readonly InstagramSettings _settings;
     private readonly IBlobStorageService _blobService;
+    private readonly ILogger<InstagramService> _logger;
 
-    public InstagramService(HttpClient httpClient, IOptions<InstagramSettings> settings, IBlobStorageService blobService)
+    public InstagramService(HttpClient httpClient, IOptions<InstagramSettings> settings, IBlobStorageService blobService, ILogger<InstagramService> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
         _blobService = blobService;
+        _logger = logger;
     }
 
     public (string Url, string State) GetAuthorizationUrl()
@@ -54,7 +57,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Facebook Token Exchange Failed: {error}");
+            _logger.LogError("Facebook Token Exchange Failed: {Error}", error);
             return null;
         }
 
@@ -108,7 +111,7 @@ public class InstagramService : IInstagramService
         }
 
         // 2. Create Media Container
-        Console.WriteLine($"[PublishPostAsync] Creating container for: {mediaUrl}");
+        _logger.LogInformation("[PublishPostAsync] Creating container for: {MediaUrl}", mediaUrl);
         string? containerId = await CreateMediaContainerAsync(accessToken, instagramBusinessId, mediaUrl, caption, type);
         if (string.IsNullOrEmpty(containerId))
         {
@@ -142,7 +145,7 @@ public class InstagramService : IInstagramService
         {
              var blobName = await UploadMediaAsync(fileStream, fileName);
              publicUrl = await _blobService.GetSasUrlAsync(blobName, TimeSpan.FromHours(1));
-             Console.WriteLine($"[PublishPostAsync] Uploaded media to: {publicUrl}");
+             _logger.LogInformation("[PublishPostAsync] Uploaded media to: {PublicUrl}", publicUrl);
         }
         catch (Exception ex)
         {
@@ -161,7 +164,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode) 
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"[GetInstagramBusinessIdAsync] API Error: {errorContent}");
+            _logger.LogError("[GetInstagramBusinessIdAsync] API Error: {ErrorContent}", errorContent);
             return null;
         }
 
@@ -169,7 +172,7 @@ public class InstagramService : IInstagramService
         
         if (data?.Data == null || !data.Data.Any())
         {
-             Console.WriteLine("[GetInstagramBusinessIdAsync] No Facebook Pages found for this user. Ensure the user manages a Facebook Page.");
+             _logger.LogWarning("[GetInstagramBusinessIdAsync] No Facebook Pages found for this user. Ensure the user manages a Facebook Page.");
              return null;
         }
 
@@ -177,7 +180,8 @@ public class InstagramService : IInstagramService
         
         if (pageWithIg == null)
         {
-            Console.WriteLine($"[GetInstagramBusinessIdAsync] Found {data.Data.Count} pages ({string.Join(", ", data.Data.Select(x => x.Name))}), but NONE have an Instagram Business Account connected. Please connect your Instagram Business account to your Facebook Page in Page Settings.");
+            _logger.LogWarning("[GetInstagramBusinessIdAsync] Found {PageCount} pages ({PageNames}), but NONE have an Instagram Business Account connected. Please connect your Instagram Business account to your Facebook Page in Page Settings.",
+                data.Data.Count, string.Join(", ", data.Data.Select(x => x.Name)));
             return null;
         }
 
@@ -216,7 +220,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode) 
         {
              var error = await response.Content.ReadAsStringAsync();
-             Console.WriteLine($"IG Create Container Error: {error}");
+             _logger.LogError("IG Create Container Error: {Error}", error);
              return null;
         }
 
@@ -235,7 +239,7 @@ public class InstagramService : IInstagramService
             if (response.IsSuccessStatusCode)
             {
                 var status = await response.Content.ReadFromJsonAsync<IgContainerStatus>();
-                Console.WriteLine($"[WaitForContainerReadyAsync] Container {containerId} status: {status?.StatusCode}");
+                _logger.LogDebug("[WaitForContainerReadyAsync] Container {ContainerId} status: {StatusCode}", containerId, status?.StatusCode);
                 
                 if (status?.StatusCode == "FINISHED") return;
                 if (status?.StatusCode == "ERROR") 
@@ -257,7 +261,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"IG Publish Error: {error}");
+            _logger.LogError("IG Publish Error: {Error}", error);
             return null;
         }
 
@@ -274,7 +278,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"IG Add Comment Error: {error}");
+            _logger.LogError("IG Add Comment Error: {Error}", error);
             return false;
         }
         return true;
@@ -291,7 +295,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode)
         {
              var error = await response.Content.ReadAsStringAsync();
-             Console.WriteLine($"[GetUserMediaAsync] Error: {error}");
+             _logger.LogError("[GetUserMediaAsync] Error: {Error}", error);
              return new List<InstagramMediaDto>();
         }
         
@@ -341,7 +345,7 @@ public class InstagramService : IInstagramService
              // Debugging: Log error
              try {
                 var err = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"[GetMediaInsightsAsync] Failed: {err}");
+                _logger.LogError("[GetMediaInsightsAsync] Failed: {Err}", err);
              } catch {}
              return new List<InstagramInsightMetric>();
         }
@@ -397,7 +401,7 @@ public class InstagramService : IInstagramService
         if (!response.IsSuccessStatusCode)
         {
              var err = await response.Content.ReadAsStringAsync();
-             Console.WriteLine($"[ReplyToCommentAsync] Failed: {err}");
+             _logger.LogError("[ReplyToCommentAsync] Failed: {Err}", err);
              return false;
         }
         return true;
@@ -427,7 +431,8 @@ public class InstagramService : IInstagramService
         }
         else 
         {
-             Console.WriteLine($"[GetAccountInsightsAsync] Request 1 Failed: {await response1.Content.ReadAsStringAsync()}");
+             var content1 = await response1.Content.ReadAsStringAsync();
+             _logger.LogError("[GetAccountInsightsAsync] Request 1 Failed: {Content}", content1);
         }
         
         // --- Request 2: Accounts Engaged & Profile Views (Total Value) ---
@@ -441,7 +446,6 @@ public class InstagramService : IInstagramService
         if (response2.IsSuccessStatusCode)
         {
              var json = await response2.Content.ReadAsStringAsync();
-             // Console.WriteLine($"[GetAccountInsightsAsync] Request 2 RAW: {json}"); // Debug
              var result2 = JsonSerializer.Deserialize<IgInsightsResponse>(json);
              
              if (result2 != null) 
@@ -452,7 +456,8 @@ public class InstagramService : IInstagramService
         }
         else
         {
-             Console.WriteLine($"[GetAccountInsightsAsync] Request 2 Failed: {await response2.Content.ReadAsStringAsync()}");
+             var content2 = await response2.Content.ReadAsStringAsync();
+             _logger.LogError("[GetAccountInsightsAsync] Request 2 Failed: {Content}", content2);
         }
 
         return new InstagramAccountInsightsResponse(

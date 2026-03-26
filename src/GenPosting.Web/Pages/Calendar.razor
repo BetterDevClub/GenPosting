@@ -2,10 +2,12 @@
 @using GenPosting.Shared.DTOs
 @using GenPosting.Shared.Enums
 @using System.Globalization
+@using Microsoft.Extensions.Logging
 @inject HttpClient Http
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject ILogger<Calendar> Logger
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 px-8" Style="height: calc(100vh - 80px); display: flex; flex-direction: column;">
     <!-- Header / Toolbar -->
@@ -241,7 +243,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching posts: {ex.Message}");
+            Logger.LogError(ex, "Error fetching posts");
         }
         finally
         {
