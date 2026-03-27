@@ -28,14 +28,18 @@ public class PostPublisherBackgroundService : BackgroundService
             try
             {
                 await ProcessDuePostsAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown — exit gracefully
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while processing scheduled posts.");
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
             }
-
-            // Check every 30 seconds
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
     }
 
