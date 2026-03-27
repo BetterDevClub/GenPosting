@@ -361,7 +361,12 @@ public class FacebookService : IFacebookService
         // fall back to "me/feed" if the permission is not yet granted.
         var endpoint = isPage ? $"{targetId}/posts" : "me/posts";
         
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
+        // full_picture is a deprecated aggregated attachment field for page posts (v3.3+).
+        // Use attachments{media{image{src}}} instead to get post images.
+        var fields = isPage
+            ? "id,message,story,created_time,updated_time,permalink_url,attachments{media_type,media{image{src}}}"
+            : "id,message,story,full_picture,created_time,updated_time,permalink_url";
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields={fields}&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
@@ -386,8 +391,9 @@ public class FacebookService : IFacebookService
             p.Id,
             p.Message ?? string.Empty,
             p.Story,
-            p.FullPicture,
-            p.Type,
+            // For page posts, image comes from attachments; for profile posts, from full_picture
+            p.FullPicture ?? p.Attachments?.Data?.FirstOrDefault()?.Media?.Image?.Src,
+            p.Attachments?.Data?.FirstOrDefault()?.MediaType ?? "status",
             p.CreatedTime,
             p.UpdatedTime,
             p.PermalinkUrl,
@@ -466,9 +472,9 @@ public class FacebookService : IFacebookService
         var sinceUnix = new DateTimeOffset(since).ToUnixTimeSeconds();
         var untilUnix = new DateTimeOffset(until).ToUnixTimeSeconds();
 
-        // page_fans is available via page fields (fan_count), not insights metrics in v18+
-        // page_engaged_users → page_post_engagements; page_views_total → page_views (v18+ deprecations)
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_post_engagements,page_views&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
+        // page_fans is NOT a valid time-series insight metric (it's a page lifetime property).
+        // page_engaged_users and page_views_total are still valid in v22.
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
@@ -484,8 +490,8 @@ public class FacebookService : IFacebookService
 
         var impressionsMetric = ProcessMetric(result.Data, "page_impressions");
         var reachMetric = ProcessMetric(result.Data, "page_impressions_unique");
-        var engagementMetric = ProcessMetric(result.Data, "page_post_engagements");
-        var viewsMetric = ProcessMetric(result.Data, "page_views");
+        var engagementMetric = ProcessMetric(result.Data, "page_engaged_users");
+        var viewsMetric = ProcessMetric(result.Data, "page_views_total");
 
         // Get current fan count
         var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
@@ -750,6 +756,9 @@ public class FacebookService : IFacebookService
         [JsonPropertyName("permalink_url")]
         public string PermalinkUrl { get; set; } = string.Empty;
 
+        [JsonPropertyName("attachments")]
+        public FbAttachmentsData? Attachments { get; set; }
+
         [JsonPropertyName("reactions")]
         public FbReactionsData? Reactions { get; set; }
 
@@ -776,6 +785,33 @@ public class FacebookService : IFacebookService
     {
         [JsonPropertyName("count")]
         public int Count { get; set; }
+    }
+
+    private class FbAttachmentsData
+    {
+        [JsonPropertyName("data")]
+        public List<FbAttachment>? Data { get; set; }
+    }
+
+    private class FbAttachment
+    {
+        [JsonPropertyName("media_type")]
+        public string? MediaType { get; set; }
+
+        [JsonPropertyName("media")]
+        public FbAttachmentMedia? Media { get; set; }
+    }
+
+    private class FbAttachmentMedia
+    {
+        [JsonPropertyName("image")]
+        public FbAttachmentImage? Image { get; set; }
+    }
+
+    private class FbAttachmentImage
+    {
+        [JsonPropertyName("src")]
+        public string? Src { get; set; }
     }
 
     private class FbSummaryData
