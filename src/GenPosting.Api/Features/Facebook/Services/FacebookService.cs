@@ -356,8 +356,9 @@ public class FacebookService : IFacebookService
 
     public async Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage, CancellationToken cancellationToken = default)
     {
-        // For personal profile, use "me/feed" instead of "me/posts" as it works with basic permissions
-        var endpoint = isPage ? $"{targetId}/feed" : "me/feed";
+        // For personal profile, use "me/posts" to get posts created by the user.
+        // Requires user_posts permission (works in Dev mode for app owner + test users).
+        var endpoint = isPage ? $"{targetId}/feed" : "me/posts";
         
         // Simplified fields - only request data that doesn't require special permissions
         // Removed: reactions.summary(true), comments.summary(true), shares (require pages_read_engagement)
