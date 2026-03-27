@@ -30,8 +30,8 @@ public class InstagramStateService : IInstagramStateService
     {
         try
         {
-            AccessToken = await _js.InvokeAsync<string>("localStorage.getItem", TOKEN_KEY);
-            UserId = await _js.InvokeAsync<string>("localStorage.getItem", USERID_KEY);
+            AccessToken = await _js.InvokeAsync<string>("sessionStorage.getItem", TOKEN_KEY);
+            UserId = await _js.InvokeAsync<string>("sessionStorage.getItem", USERID_KEY);
         }
         catch { }
     }
@@ -43,15 +43,15 @@ public class InstagramStateService : IInstagramStateService
 
         if (string.IsNullOrEmpty(token))
         {
-            await _js.InvokeVoidAsync("localStorage.removeItem", TOKEN_KEY);
-            await _js.InvokeVoidAsync("localStorage.removeItem", USERID_KEY);
+            await _js.InvokeVoidAsync("sessionStorage.removeItem", TOKEN_KEY);
+            await _js.InvokeVoidAsync("sessionStorage.removeItem", USERID_KEY);
         }
         else
         {
-            await _js.InvokeVoidAsync("localStorage.setItem", TOKEN_KEY, token);
+            await _js.InvokeVoidAsync("sessionStorage.setItem", TOKEN_KEY, token);
             if (!string.IsNullOrEmpty(userId))
             {
-                await _js.InvokeVoidAsync("localStorage.setItem", USERID_KEY, userId);
+                await _js.InvokeVoidAsync("sessionStorage.setItem", USERID_KEY, userId);
             }
         }
     }
