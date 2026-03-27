@@ -776,13 +776,21 @@
         try
         {
             var token = _fbSelectedPageToken ?? FacebookState.AccessToken;
+            Console.WriteLine($"[FB] LoadFbPagePosts: pageId={pageId}, hasPageToken={!string.IsNullOrEmpty(_fbSelectedPageToken)}");
             var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={pageId}&isPage=true");
             req.Headers.Add("X-Facebook-Token", token);
             var resp = await Http.SendAsync(req);
+            Console.WriteLine($"[FB] PagePosts response: {resp.StatusCode}");
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
                 _fbPagePosts = result?.Data;
+                Console.WriteLine($"[FB] PagePosts loaded: {_fbPagePosts?.Count ?? 0}");
+            }
+            else
+            {
+                var body = await resp.Content.ReadAsStringAsync();
+                Console.WriteLine($"[FB] PagePosts error body: {body}");
             }
         }
         catch (Exception ex) { Snackbar.Add($"Failed to load page posts: {ex.Message}", Severity.Warning); }

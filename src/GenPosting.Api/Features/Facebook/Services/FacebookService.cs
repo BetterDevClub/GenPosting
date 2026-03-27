@@ -356,16 +356,23 @@ public class FacebookService : IFacebookService
 
     public async Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage, CancellationToken cancellationToken = default)
     {
-        // For personal profile, use "me/posts" to get posts created by the user.
-        // Requires user_posts permission (works in Dev mode for app owner + test users).
-        var endpoint = isPage ? $"{targetId}/feed" : "me/posts";
+        // For pages, use "{pageId}/posts" (page admin's own posts; works with page access token).
+        // For personal profile, try "me/posts" (requires user_posts permission);
+        // fall back to "me/feed" if the permission is not yet granted.
+        var endpoint = isPage ? $"{targetId}/posts" : "me/posts";
         
-        // Simplified fields - only request data that doesn't require special permissions
-        // Removed: reactions.summary(true), comments.summary(true), shares (require pages_read_engagement)
         var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
+        // If me/posts fails (likely missing user_posts permission), fall back to me/feed
+        if (!response.IsSuccessStatusCode && !isPage)
+        {
+            _logger.LogWarning("[GetPosts] me/posts failed, falling back to me/feed");
+            var fallbackUrl = $"https://graph.facebook.com/{GraphApiVersion}/me/feed?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
+            response = await _httpClient.GetAsync(fallbackUrl, cancellationToken);
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
@@ -384,9 +391,9 @@ public class FacebookService : IFacebookService
             p.CreatedTime,
             p.UpdatedTime,
             p.PermalinkUrl,
-            null, // Reactions not available without pages_read_engagement
-            0, // Comments count not available
-            0  // Shares count not available
+            null,
+            0,
+            0
         )).ToList() ?? new List<FacebookPostDto>();
     }
 
@@ -459,7 +466,9 @@ public class FacebookService : IFacebookService
         var sinceUnix = new DateTimeOffset(since).ToUnixTimeSeconds();
         var untilUnix = new DateTimeOffset(until).ToUnixTimeSeconds();
 
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total,page_fans&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
+        // page_fans is available via page fields (fan_count), not insights metrics in v18+
+        // page_engaged_users → page_post_engagements; page_views_total → page_views (v18+ deprecations)
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_post_engagements,page_views&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
@@ -475,8 +484,8 @@ public class FacebookService : IFacebookService
 
         var impressionsMetric = ProcessMetric(result.Data, "page_impressions");
         var reachMetric = ProcessMetric(result.Data, "page_impressions_unique");
-        var engagementMetric = ProcessMetric(result.Data, "page_engaged_users");
-        var viewsMetric = ProcessMetric(result.Data, "page_views_total");
+        var engagementMetric = ProcessMetric(result.Data, "page_post_engagements");
+        var viewsMetric = ProcessMetric(result.Data, "page_views");
 
         // Get current fan count
         var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
