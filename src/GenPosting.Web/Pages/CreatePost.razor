@@ -119,7 +119,7 @@
                         </div>
                     </div>
 
-                    <!-- Facebook Account -->
+                    <!-- Facebook Profile -->
                     <div class="d-flex align-center pa-2 rounded @(_facebookSelected ? "mud-theme-primary-hover" : "")" 
                          style="border: 1px solid #e0e0e0; cursor: pointer;"
                          @onclick="@(() => ToggleFacebook(null))">
@@ -141,7 +141,7 @@
                                     </MudAvatar>
                                     <div>
                                         <MudText Typo="Typo.body2" Style="font-weight: 600;">@_facebookProfile.Name</MudText>
-                                        <MudText Typo="Typo.caption">Facebook</MudText>
+                                        <MudText Typo="Typo.caption">Facebook Profile</MudText>
                                     </div>
                                 }
                                 else if (_loadingProfiles)
@@ -166,52 +166,45 @@
                         </div>
                     </div>
 
-                    @* Post target selection — shown when Facebook is selected and user is authenticated *@
-                    @if (_facebookSelected && FacebookState.IsAuthenticated)
+                    @* Facebook Pages — each rendered as a separate account row *@
+                    @if (_loadingFacebookPages)
                     {
-                        <div class="ml-4 mt-1 mb-2">
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Post to:</MudText>
-
-                            @* Profile *@
-                            <div class="d-flex align-center gap-1">
-                                <MudCheckBox T="bool" Value="@_facebookPostToProfile"
-                                             ValueChanged="@(v => _facebookPostToProfile = v)"
-                                             Dense="true" Size="Size.Small" Color="Color.Primary" />
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
-                                <MudText Typo="Typo.body2">My Profile</MudText>
-                            </div>
-
-                            @* Pages *@
-                            @if (_loadingFacebookPages)
-                            {
-                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="ml-2 mt-1" />
-                            }
-                            else
-                            {
-                                @foreach (var fbPage in _facebookPages)
-                                {
-                                    var pid = fbPage.Id;
-                                    <div class="d-flex align-center gap-1">
-                                        <MudCheckBox T="bool"
-                                                     Value="@(_facebookSelectedPageIds.Contains(pid))"
-                                                     ValueChanged="@(v => ToggleFacebookPage(pid, v))"
-                                                     Dense="true" Size="Size.Small" Color="Color.Primary" />
-                                        <MudAvatar Size="Size.Small" Style="width:20px;height:20px;font-size:10px;background-color:#1877F2;color:white;">
-                                            @if (!string.IsNullOrEmpty(fbPage.ProfilePictureUrl))
-                                            {
-                                                <MudImage Src="@fbPage.ProfilePictureUrl" />
-                                            }
-                                            else
-                                            {
-                                                @(fbPage.Name.Length > 0 ? fbPage.Name[0] : 'F')
-                                            }
-                                        </MudAvatar>
-                                        <MudText Typo="Typo.body2">@fbPage.Name</MudText>
-                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-1" Style="height:16px;font-size:10px;">Page</MudChip>
-                                    </div>
-                                }
-                            }
+                        <div class="d-flex align-center gap-2 pa-2 ml-2">
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                            <MudText Typo="Typo.caption">Loading pages...</MudText>
                         </div>
+                    }
+                    else
+                    {
+                        @foreach (var fbPage in _facebookPages)
+                        {
+                            var pid = fbPage.Id;
+                            var isSelected = _facebookSelectedPageIds.Contains(pid);
+                            <div class="d-flex align-center pa-2 rounded @(isSelected ? "mud-theme-primary-hover" : "")"
+                                 style="border: 1px solid #e0e0e0; cursor: pointer; margin-top: 4px;"
+                                 @onclick="@(() => ToggleFacebookPage(pid, !_facebookSelectedPageIds.Contains(pid)))">
+                                <MudCheckBox T="bool"
+                                             Value="@isSelected"
+                                             ValueChanged="@(v => ToggleFacebookPage(pid, v))"
+                                             Color="Color.Primary" Dense="true" StopClickPropagation="true" />
+                                <div class="d-flex align-center gap-2 flex-grow-1">
+                                    <MudAvatar Size="Size.Medium" Style="background-color: #1877F2; color: white;">
+                                        @if (!string.IsNullOrEmpty(fbPage.ProfilePictureUrl))
+                                        {
+                                            <MudImage Src="@fbPage.ProfilePictureUrl" />
+                                        }
+                                        else
+                                        {
+                                            @(fbPage.Name.Length > 0 ? fbPage.Name[0] : 'F')
+                                        }
+                                    </MudAvatar>
+                                    <div>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@fbPage.Name</MudText>
+                                        <MudText Typo="Typo.caption">Facebook Page</MudText>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     }
                 }
             </MudPaper>
@@ -255,7 +248,7 @@
                                 🟣 Instagram: @igCount / 2,200
                             </span>
                         }
-                        @if (_facebookSelected)
+                        @if (_facebookSelected || _facebookSelectedPageIds.Count > 0)
                         {
                             var fbCount = _postContent?.Length ?? 0;
                             <span style="color: @(fbCount > 63206 ? "#f44336" : fbCount > 56885 ? "#FF9800" : "inherit")">
@@ -420,7 +413,7 @@
                             Comments="@_comments"
                         />
                     </MudTabPanel>
-                    <MudTabPanel Text="Facebook" Icon="@Icons.Custom.Brands.Facebook" Disabled="@(!_facebookSelected)">
+                    <MudTabPanel Text="Facebook" Icon="@Icons.Custom.Brands.Facebook" Disabled="@(!_facebookSelected && _facebookSelectedPageIds.Count == 0)">
                         <div class="pa-3" style="background: #f0f2f5; border-radius: 8px;">
                             <div class="d-flex align-center gap-2 mb-2">
                                 <MudAvatar Size="Size.Small" Style="background-color: #1877F2; color: white; font-size: 0.75rem;">
@@ -440,7 +433,7 @@
                     </MudTabPanel>
                 </MudTabs>
                 
-                @if (!_linkedInSelected && !_instagramSelected && !_facebookSelected)
+                @if (!_linkedInSelected && !_instagramSelected && !_facebookSelected && _facebookSelectedPageIds.Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Class="mt-4">Select a platform to see the preview.</MudAlert>
                 }
@@ -456,7 +449,6 @@
     private FacebookUserDto? _facebookProfile;
     private List<FacebookPageDto> _facebookPages = new();
     private bool _loadingFacebookPages;
-    private bool _facebookPostToProfile = true;
     private HashSet<string> _facebookSelectedPageIds = new();
     
     // Selection State
@@ -561,6 +553,9 @@
                     _facebookProfile = await res.Content.ReadFromJsonAsync<FacebookUserDto>();
                     _facebookSelected = true; // Auto-select if connected
                 }
+
+                // Load pages in parallel so they appear as separate account rows
+                await LoadFacebookPages();
             }
         }
         catch (Exception ex)
@@ -613,14 +608,10 @@
         }
     }
 
-    private async void ToggleFacebook(bool? value = null)
+    private void ToggleFacebook(bool? value = null)
     {
         if (FacebookState.IsAuthenticated && _facebookProfile != null)
-        {
             _facebookSelected = value ?? !_facebookSelected;
-            if (_facebookSelected && _facebookPages.Count == 0)
-                await LoadFacebookPages();
-        }
         else if (_facebookProfile == null && FacebookState.IsAuthenticated)
         {
             Snackbar.Add("Facebook session expired. Please reconnect in Settings.", Severity.Warning);
@@ -720,7 +711,7 @@
             }
 
             // 3. Post to Facebook
-            if (_facebookSelected)
+            if (_facebookSelected || _facebookSelectedPageIds.Count > 0)
             {
                 await PostToFacebook(scheduledDateTime);
             }
@@ -857,15 +848,10 @@
     private async Task PostToFacebook(DateTime? scheduledAt)
     {
         var targets = new List<(string target, string? targetId)>();
-        if (_facebookPostToProfile)
+        if (_facebookSelected)
             targets.Add(("Profile", null));
         foreach (var pageId in _facebookSelectedPageIds)
-        {
-            var page = _facebookPages.FirstOrDefault(p => p.Id == pageId);
             targets.Add(("Page", pageId));
-        }
-        if (targets.Count == 0)
-            targets.Add(("Profile", null));
 
         foreach (var (target, targetId) in targets)
         {
@@ -883,8 +869,6 @@
                 var file = _uploadedFiles[0];
                 var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
                 form.Add(new StreamContent(stream), "file", file.Name);
-                if (file.Name.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                    form.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("video/mp4");
             }
 
             var req = new HttpRequestMessage(HttpMethod.Post, "/api/facebook/post") { Content = form };
