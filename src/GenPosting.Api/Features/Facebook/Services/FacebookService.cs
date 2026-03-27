@@ -11,7 +11,7 @@ namespace GenPosting.Api.Features.Facebook.Services;
 
 public class FacebookService : IFacebookService
 {
-    private const string GraphApiVersion = "{GraphApiVersion}";
+    private const string GraphApiVersion = "v22.0";
 
     private readonly HttpClient _httpClient;
     private readonly FacebookSettings _settings;
