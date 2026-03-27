@@ -23,4 +23,7 @@ public class ScheduledPost
     public bool IsPublished { get; set; } = false;
     public ScheduledPostStatus Status { get; set; } = ScheduledPostStatus.Pending;
     public string? FailureReason { get; set; }
+    public int RetryCount { get; set; } = 0;
+    public int MaxRetries { get; set; } = 3;
+    public DateTimeOffset? NextRetryAt { get; set; }
 }

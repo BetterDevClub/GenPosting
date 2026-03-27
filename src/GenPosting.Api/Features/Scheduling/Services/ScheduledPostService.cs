@@ -14,6 +14,7 @@ public interface IScheduledPostService
     Task<List<ScheduledPost>> GetDuePostsAsync(CancellationToken cancellationToken = default);
     Task MarkAsPublishedAsync(Guid id, CancellationToken cancellationToken = default);
     Task MarkAsFailedAsync(Guid id, string error, CancellationToken cancellationToken = default);
+    Task ResetForRetryAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public class InMemoryScheduledPostService : IScheduledPostService
@@ -56,7 +57,10 @@ public class InMemoryScheduledPostService : IScheduledPostService
     {
         var now = DateTimeOffset.UtcNow;
         var due = _posts.Values
-            .Where(p => !p.IsPublished && p.Status == ScheduledPostStatus.Pending && p.ScheduledTime <= now)
+            .Where(p => !p.IsPublished
+                && p.Status == ScheduledPostStatus.Pending
+                && p.ScheduledTime <= now
+                && (p.NextRetryAt == null || p.NextRetryAt <= now))
             .ToList();
         return Task.FromResult(due);
     }
@@ -75,8 +79,32 @@ public class InMemoryScheduledPostService : IScheduledPostService
     {
         if (_posts.TryGetValue(id, out var post))
         {
-            post.Status = ScheduledPostStatus.Failed;
+            post.RetryCount++;
             post.FailureReason = error;
+
+            if (post.RetryCount < post.MaxRetries)
+            {
+                // Exponential backoff: 1min, 4min, 16min, ...
+                var delayMinutes = Math.Pow(4, post.RetryCount - 1);
+                post.NextRetryAt = DateTimeOffset.UtcNow.AddMinutes(delayMinutes);
+                post.Status = ScheduledPostStatus.Pending;
+            }
+            else
+            {
+                post.Status = ScheduledPostStatus.Failed;
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task ResetForRetryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (_posts.TryGetValue(id, out var post))
+        {
+            post.Status = ScheduledPostStatus.Pending;
+            post.RetryCount = 0;
+            post.NextRetryAt = null;
+            post.FailureReason = null;
         }
         return Task.CompletedTask;
     }

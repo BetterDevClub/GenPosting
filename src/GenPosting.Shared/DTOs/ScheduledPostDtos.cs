@@ -11,7 +11,11 @@ public record ScheduledPostDto(
     List<string>? Comments,
     DateTimeOffset ScheduledTime,
     ScheduledPostStatus Status,
-    string? ThumbnailUrl = null
+    string? ThumbnailUrl = null,
+    string? FailureReason = null,
+    int RetryCount = 0,
+    int MaxRetries = 3,
+    DateTimeOffset? NextRetryAt = null
 );
 
 public record UpdateScheduledPostRequest(
