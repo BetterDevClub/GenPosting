@@ -472,18 +472,12 @@
                                         </MudItem>
                                         <MudItem xs="12" sm="6" md="2">
                                             <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
-                                                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Color="Color.Warning" />
+                                                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Warning" />
                                                 <MudText Typo="Typo.h5" Style="font-weight:700;">@_fbPageInsights.PageEngagement.TotalValue.ToString("N0")</MudText>
-                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">Engaged Users</MudText>
+                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">New Fans</MudText>
                                             </MudPaper>
                                         </MudItem>
-                                        <MudItem xs="12" sm="6" md="2">
-                                            <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
-                                                <MudIcon Icon="@Icons.Material.Filled.Pageview" Color="Color.Error" />
-                                                <MudText Typo="Typo.h5" Style="font-weight:700;">@_fbPageInsights.PageViews.TotalValue.ToString("N0")</MudText>
-                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">Page Views</MudText>
-                                            </MudPaper>
-                                        </MudItem>
+                                        @* page_views_total removed in Graph API v19.0 — card hidden *@
                                     }
                                 </MudGrid>
 

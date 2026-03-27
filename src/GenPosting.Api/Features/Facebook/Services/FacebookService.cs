@@ -99,8 +99,7 @@ public class FacebookService : IFacebookService
         }
 
         var result = await response.Content.ReadFromJsonAsync<FbPagesResponse>();
-        
-        return result?.Data.Select(p => new FacebookPageDto(
+        var pages = result?.Data.Select(p => new FacebookPageDto(
             p.Id,
             p.Name,
             p.Category,
@@ -110,6 +109,9 @@ public class FacebookService : IFacebookService
             p.Picture?.Data?.Url,
             p.Cover?.Source
         )).ToList() ?? new List<FacebookPageDto>();
+        
+        _logger.LogInformation("[GetUserPagesAsync] Found {Count} pages for userId={UserId}", pages.Count, userId);
+        return pages;
     }
 
     private async Task<string> UploadMediaAsync(Stream fileStream, string fileName)
@@ -472,9 +474,10 @@ public class FacebookService : IFacebookService
         var sinceUnix = new DateTimeOffset(since).ToUnixTimeSeconds();
         var untilUnix = new DateTimeOffset(until).ToUnixTimeSeconds();
 
-        // page_fans is NOT a valid time-series insight metric (it's a page lifetime property).
-        // page_engaged_users and page_views_total are still valid in v22.
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_engaged_users,page_views_total&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
+        // page_engaged_users and page_views_total were removed in Graph API v19.0 (Jan 2024).
+        // Safe metrics for v22: page_impressions, page_impressions_unique, page_fan_adds.
+        // Fans/followers count comes from the separate page fields request below.
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_fan_adds&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
         
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
@@ -490,8 +493,8 @@ public class FacebookService : IFacebookService
 
         var impressionsMetric = ProcessMetric(result.Data, "page_impressions");
         var reachMetric = ProcessMetric(result.Data, "page_impressions_unique");
-        var engagementMetric = ProcessMetric(result.Data, "page_engaged_users");
-        var viewsMetric = ProcessMetric(result.Data, "page_views_total");
+        var engagementMetric = ProcessMetric(result.Data, "page_fan_adds"); // new fan adds per day
+        var viewsMetric = new FacebookInsightMetricDto("page_views_total", 0, new()); // removed in v19+
 
         // Get current fan count
         var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}?fields=fan_count,followers_count&access_token={accessToken}";
