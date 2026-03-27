@@ -165,6 +165,54 @@
                             }
                         </div>
                     </div>
+
+                    @* Post target selection — shown when Facebook is selected and user is authenticated *@
+                    @if (_facebookSelected && FacebookState.IsAuthenticated)
+                    {
+                        <div class="ml-4 mt-1 mb-2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Post to:</MudText>
+
+                            @* Profile *@
+                            <div class="d-flex align-center gap-1">
+                                <MudCheckBox T="bool" Value="@_facebookPostToProfile"
+                                             ValueChanged="@(v => _facebookPostToProfile = v)"
+                                             Dense="true" Size="Size.Small" Color="Color.Primary" />
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">My Profile</MudText>
+                            </div>
+
+                            @* Pages *@
+                            @if (_loadingFacebookPages)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="ml-2 mt-1" />
+                            }
+                            else
+                            {
+                                @foreach (var fbPage in _facebookPages)
+                                {
+                                    var pid = fbPage.Id;
+                                    <div class="d-flex align-center gap-1">
+                                        <MudCheckBox T="bool"
+                                                     Value="@(_facebookSelectedPageIds.Contains(pid))"
+                                                     ValueChanged="@(v => ToggleFacebookPage(pid, v))"
+                                                     Dense="true" Size="Size.Small" Color="Color.Primary" />
+                                        <MudAvatar Size="Size.Small" Style="width:20px;height:20px;font-size:10px;background-color:#1877F2;color:white;">
+                                            @if (!string.IsNullOrEmpty(fbPage.ProfilePictureUrl))
+                                            {
+                                                <MudImage Src="@fbPage.ProfilePictureUrl" />
+                                            }
+                                            else
+                                            {
+                                                @(fbPage.Name.Length > 0 ? fbPage.Name[0] : 'F')
+                                            }
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2">@fbPage.Name</MudText>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-1" Style="height:16px;font-size:10px;">Page</MudChip>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
                 }
             </MudPaper>
         </MudItem>
@@ -406,6 +454,10 @@
     private LinkedInProfileDto? _linkedInProfile;
     private InstagramUserDto? _instagramProfile;
     private FacebookUserDto? _facebookProfile;
+    private List<FacebookPageDto> _facebookPages = new();
+    private bool _loadingFacebookPages;
+    private bool _facebookPostToProfile = true;
+    private HashSet<string> _facebookSelectedPageIds = new();
     
     // Selection State
     private bool _linkedInSelected;
@@ -561,11 +613,13 @@
         }
     }
 
-    private void ToggleFacebook(bool? value = null)
+    private async void ToggleFacebook(bool? value = null)
     {
         if (FacebookState.IsAuthenticated && _facebookProfile != null)
         {
             _facebookSelected = value ?? !_facebookSelected;
+            if (_facebookSelected && _facebookPages.Count == 0)
+                await LoadFacebookPages();
         }
         else if (_facebookProfile == null && FacebookState.IsAuthenticated)
         {
@@ -576,6 +630,34 @@
         {
             Snackbar.Add("Connect Facebook first!", Severity.Warning);
             _facebookSelected = false;
+        }
+    }
+
+    private void ToggleFacebookPage(string pageId, bool selected)
+    {
+        if (selected) _facebookSelectedPageIds.Add(pageId);
+        else _facebookSelectedPageIds.Remove(pageId);
+    }
+
+    private async Task LoadFacebookPages()
+    {
+        _loadingFacebookPages = true;
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}");
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            var res = await Http.SendAsync(req);
+            if (res.IsSuccessStatusCode)
+            {
+                var response = await res.Content.ReadFromJsonAsync<FacebookPageListResponse>();
+                _facebookPages = response?.Data ?? new();
+            }
+        }
+        catch { }
+        finally
+        {
+            _loadingFacebookPages = false;
+            StateHasChanged();
         }
     }
 
@@ -774,21 +856,47 @@
 
     private async Task PostToFacebook(DateTime? scheduledAt)
     {
-        var payload = new
+        var targets = new List<(string target, string? targetId)>();
+        if (_facebookPostToProfile)
+            targets.Add(("Profile", null));
+        foreach (var pageId in _facebookSelectedPageIds)
         {
-            UserId = FacebookState.UserId,
-            Message = _postContent,
-            ScheduledAt = scheduledAt
-        };
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/facebook/post");
-        req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-        req.Content = JsonContent.Create(payload);
+            var page = _facebookPages.FirstOrDefault(p => p.Id == pageId);
+            targets.Add(("Page", pageId));
+        }
+        if (targets.Count == 0)
+            targets.Add(("Profile", null));
 
-        var res = await Http.SendAsync(req);
-        if (!res.IsSuccessStatusCode)
+        foreach (var (target, targetId) in targets)
         {
-            var err = await res.Content.ReadAsStringAsync();
-            throw new Exception($"Facebook Failed: {err}");
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(_postContent), "content");
+            form.Add(new StringContent("Text"), "postType");
+            form.Add(new StringContent(target), "target");
+            if (targetId != null)
+                form.Add(new StringContent(targetId), "targetId");
+            if (scheduledAt.HasValue)
+                form.Add(new StringContent(scheduledAt.Value.ToString("o")), "scheduledFor");
+
+            if (_uploadedFiles.Count > 0)
+            {
+                var file = _uploadedFiles[0];
+                var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                form.Add(new StreamContent(stream), "file", file.Name);
+                if (file.Name.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                    form.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("video/mp4");
+            }
+
+            var req = new HttpRequestMessage(HttpMethod.Post, "/api/facebook/post") { Content = form };
+            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
+            req.Headers.Add("X-Facebook-UserId", FacebookState.UserId);
+
+            var res = await Http.SendAsync(req);
+            if (!res.IsSuccessStatusCode)
+            {
+                var err = await res.Content.ReadAsStringAsync();
+                throw new Exception($"Facebook Failed ({target}): {err}");
+            }
         }
     }
 

@@ -6,5 +6,5 @@ public class FacebookSettings
     
     public string ClientId { get; set; } = string.Empty;
     public string ClientSecret { get; set; } = string.Empty;
-    public string Scope { get; set; } = "public_profile,email,pages_show_list,pages_read_engagement"; 
+    public string Scope { get; set; } = "public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts";
 }
