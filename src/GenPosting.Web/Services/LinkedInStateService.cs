@@ -28,7 +28,7 @@ public class LinkedInStateService : ILinkedInStateService
     {
         try
         {
-            AccessToken = await _js.InvokeAsync<string>("sessionStorage.getItem", STORAGE_KEY);
+            AccessToken = await _js.InvokeAsync<string>("localStorage.getItem", STORAGE_KEY);
         }
         catch { }
     }
@@ -38,11 +38,11 @@ public class LinkedInStateService : ILinkedInStateService
         AccessToken = token;
         if (string.IsNullOrEmpty(token))
         {
-            await _js.InvokeVoidAsync("sessionStorage.removeItem", STORAGE_KEY);
+            await _js.InvokeVoidAsync("localStorage.removeItem", STORAGE_KEY);
         }
         else
         {
-            await _js.InvokeVoidAsync("sessionStorage.setItem", STORAGE_KEY, token);
+            await _js.InvokeVoidAsync("localStorage.setItem", STORAGE_KEY, token);
         }
     }
 }
