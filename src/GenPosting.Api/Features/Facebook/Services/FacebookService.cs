@@ -111,6 +111,8 @@ public class FacebookService : IFacebookService
         )).ToList() ?? new List<FacebookPageDto>();
         
         _logger.LogInformation("[GetUserPagesAsync] Found {Count} pages for userId={UserId}", pages.Count, userId);
+        foreach (var p in pages)
+            _logger.LogInformation("[GetUserPagesAsync] Page '{Name}' hasToken={HasToken}", p.Name, !string.IsNullOrEmpty(p.AccessToken));
         return pages;
     }
 
@@ -358,26 +360,33 @@ public class FacebookService : IFacebookService
 
     public async Task<List<FacebookPostDto>> GetPostsAsync(string accessToken, string targetId, bool isPage, CancellationToken cancellationToken = default)
     {
-        // For pages, use "{pageId}/posts" (page admin's own posts; works with page access token).
-        // For personal profile, try "me/posts" (requires user_posts permission);
-        // fall back to "me/feed" if the permission is not yet granted.
-        var endpoint = isPage ? $"{targetId}/posts" : "me/posts";
-        
         // full_picture is a deprecated aggregated attachment field for page posts (v3.3+).
         // Use attachments{media{image{src}}} instead to get post images.
         var fields = isPage
-            ? "id,message,story,created_time,updated_time,permalink_url,attachments{media_type,media{image{src}}}"
-            : "id,message,story,full_picture,created_time,updated_time,permalink_url";
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{endpoint}?fields={fields}&access_token={accessToken}";
-        
-        var response = await _httpClient.GetAsync(url, cancellationToken);
-        
-        // If me/posts fails (likely missing user_posts permission), fall back to me/feed
-        if (!response.IsSuccessStatusCode && !isPage)
+            ? "id,message,story,created_time,updated_time,permalink_url,attachments{media_type,media{image{src}}},reactions.summary(true),comments.summary(true),shares"
+            : "id,message,story,full_picture,created_time,updated_time,permalink_url,reactions.summary(true),comments.summary(true),shares";
+
+        HttpResponseMessage response;
+
+        if (isPage)
         {
-            _logger.LogWarning("[GetPosts] me/posts failed, falling back to me/feed");
-            var fallbackUrl = $"https://graph.facebook.com/{GraphApiVersion}/me/feed?fields=id,message,story,full_picture,type,created_time,updated_time,permalink_url&access_token={accessToken}";
-            response = await _httpClient.GetAsync(fallbackUrl, cancellationToken);
+            // Use {pageId}/posts with the USER token (which has pages_read_engagement).
+            // Page tokens from me/accounts don't reliably inherit this permission in v22.
+            var pageUrl = $"https://graph.facebook.com/{GraphApiVersion}/{targetId}/posts?fields={fields}&access_token={accessToken}";
+            response = await _httpClient.GetAsync(pageUrl, cancellationToken);
+        }
+        else
+        {
+            // Personal profile: try me/posts then me/feed as fallback.
+            var meUrl = $"https://graph.facebook.com/{GraphApiVersion}/me/posts?fields={fields}&access_token={accessToken}";
+            response = await _httpClient.GetAsync(meUrl, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("[GetPosts] me/posts failed, falling back to me/feed");
+                var fallbackUrl = $"https://graph.facebook.com/{GraphApiVersion}/me/feed?fields=id,message,story,full_picture,created_time,updated_time,permalink_url&access_token={accessToken}";
+                response = await _httpClient.GetAsync(fallbackUrl, cancellationToken);
+            }
         }
 
         if (!response.IsSuccessStatusCode)
@@ -388,8 +397,16 @@ public class FacebookService : IFacebookService
         }
 
         var result = await response.Content.ReadFromJsonAsync<FbPostsResponse>();
-        
-        return result?.Data.Select(p => new FacebookPostDto(
+        if (result?.Data == null) return new List<FacebookPostDto>();
+
+        // For page posts, also fetch per-post reach from insights
+        var posts = result.Data;
+        var reachTasks = isPage
+            ? posts.Select(p => FetchPostReachAsync(accessToken, p.Id, cancellationToken)).ToList()
+            : posts.Select(_ => Task.FromResult(0)).ToList();
+        var reaches = await Task.WhenAll(reachTasks);
+
+        return posts.Select((p, i) => new FacebookPostDto(
             p.Id,
             p.Message ?? string.Empty,
             p.Story,
@@ -399,10 +416,22 @@ public class FacebookService : IFacebookService
             p.CreatedTime,
             p.UpdatedTime,
             p.PermalinkUrl,
-            null,
-            0,
-            0
-        )).ToList() ?? new List<FacebookPostDto>();
+            MapReactions(p.Reactions),
+            p.Comments?.Summary?.TotalCount ?? 0,
+            p.Shares?.Count ?? 0,
+            reaches[i]
+        )).ToList();
+    }
+
+    private async Task<int> FetchPostReachAsync(string accessToken, string postId, CancellationToken ct)
+    {
+        var url = $"https://graph.facebook.com/{GraphApiVersion}/{postId}/insights?metric=post_impressions_unique&access_token={accessToken}";
+        var response = await _httpClient.GetAsync(url, ct);
+        if (!response.IsSuccessStatusCode) return 0;
+        var result = await response.Content.ReadFromJsonAsync<FbInsightsResponse>(cancellationToken: ct);
+        var metric = result?.Data?.FirstOrDefault(x => x.Name == "post_impressions_unique");
+        if (metric?.Values == null) return 0;
+        return metric.Values.Sum(v => v.Value.ValueKind == JsonValueKind.Number ? v.Value.GetInt32() : 0);
     }
 
     public async Task<FacebookPostDto?> GetPostAsync(string accessToken, string postId, CancellationToken cancellationToken = default)
@@ -466,6 +495,28 @@ public class FacebookService : IFacebookService
         );
     }
 
+    private async Task<FacebookInsightMetricDto> FetchPageMetricAsync(string accessToken, string pageId, string[] candidateMetrics, long sinceUnix, long untilUnix, CancellationToken ct)
+    {
+        // Try each candidate metric name with both period types until one succeeds.
+        foreach (var metric in candidateMetrics)
+        {
+            foreach (var period in new[] { "day", "total_over_range" })
+            {
+                var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric={metric}&period={period}&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
+                var response = await _httpClient.GetAsync(url, ct);
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("[GetPageInsights] Metric '{Metric}' period='{Period}' succeeded", metric, period);
+                    var result = await response.Content.ReadFromJsonAsync<FbInsightsResponse>(cancellationToken: ct);
+                    return ProcessMetric(result?.Data ?? [], metric);
+                }
+            }
+            _logger.LogWarning("[GetPageInsights] Metric '{Metric}' unavailable, trying next candidate", metric);
+        }
+        _logger.LogError("[GetPageInsights] All candidates failed: {Metrics}", string.Join(", ", candidateMetrics));
+        return new FacebookInsightMetricDto(candidateMetrics[0], 0, new());
+    }
+
     public async Task<FacebookPageInsightsResponse?> GetPageInsightsAsync(string accessToken, string pageId, DateTime? from, DateTime? to, CancellationToken cancellationToken = default)
     {
         var since = (from ?? DateTime.Now.AddDays(-30)).ToUniversalTime();
@@ -474,26 +525,17 @@ public class FacebookService : IFacebookService
         var sinceUnix = new DateTimeOffset(since).ToUnixTimeSeconds();
         var untilUnix = new DateTimeOffset(until).ToUnixTimeSeconds();
 
-        // page_engaged_users and page_views_total were removed in Graph API v19.0 (Jan 2024).
-        // Safe metrics for v22: page_impressions, page_impressions_unique, page_fan_adds.
-        // Fans/followers count comes from the separate page fields request below.
-        var url = $"https://graph.facebook.com/{GraphApiVersion}/{pageId}/insights?metric=page_impressions,page_impressions_unique,page_fan_adds&period=day&since={sinceUnix}&until={untilUnix}&access_token={accessToken}";
-        
-        var response = await _httpClient.GetAsync(url, cancellationToken);
-        
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            _logger.LogError("[GetPageInsights] Failed: {Content}", content);
-            return null;
-        }
-
-        var result = await response.Content.ReadFromJsonAsync<FbInsightsResponse>();
-        if (result?.Data == null) return null;
-
-        var impressionsMetric = ProcessMetric(result.Data, "page_impressions");
-        var reachMetric = ProcessMetric(result.Data, "page_impressions_unique");
-        var engagementMetric = ProcessMetric(result.Data, "page_fan_adds"); // new fan adds per day
+        // Fetch each metric with fallback candidates — many metrics were renamed/removed in v19-v22.
+        // page_impressions_unique (reach) confirmed working; others try alternatives in order.
+        var impressionsMetric = await FetchPageMetricAsync(accessToken, pageId,
+            ["page_impressions", "page_impressions_organic_v2", "page_impressions_viral"],
+            sinceUnix, untilUnix, cancellationToken);
+        var reachMetric = await FetchPageMetricAsync(accessToken, pageId,
+            ["page_impressions_unique", "page_reach"],
+            sinceUnix, untilUnix, cancellationToken);
+        var engagementMetric = await FetchPageMetricAsync(accessToken, pageId,
+            ["page_fan_adds", "page_fan_adds_unique", "page_post_engagements", "page_consumptions"],
+            sinceUnix, untilUnix, cancellationToken);
         var viewsMetric = new FacebookInsightMetricDto("page_views_total", 0, new()); // removed in v19+
 
         // Get current fan count

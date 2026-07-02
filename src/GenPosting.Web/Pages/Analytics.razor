@@ -458,13 +458,6 @@
                                     {
                                         <MudItem xs="12" sm="6" md="2">
                                             <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
-                                                <MudIcon Icon="@Icons.Material.Filled.Public" Color="Color.Success" />
-                                                <MudText Typo="Typo.h5" Style="font-weight:700;">@_fbPageInsights.PageImpressions.TotalValue.ToString("N0")</MudText>
-                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">Impressions</MudText>
-                                            </MudPaper>
-                                        </MudItem>
-                                        <MudItem xs="12" sm="6" md="2">
-                                            <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
                                                 <MudIcon Icon="@Icons.Material.Filled.Visibility" Color="Color.Secondary" />
                                                 <MudText Typo="Typo.h5" Style="font-weight:700;">@_fbPageInsights.PageReach.TotalValue.ToString("N0")</MudText>
                                                 <MudText Typo="Typo.caption" Style="opacity:0.6;">Unique Reach</MudText>
@@ -472,12 +465,12 @@
                                         </MudItem>
                                         <MudItem xs="12" sm="6" md="2">
                                             <MudPaper Class="pa-4 d-flex flex-column align-center gap-1 rounded-xl" Elevation="1">
-                                                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Warning" />
+                                                <MudIcon Icon="@Icons.Material.Filled.TouchApp" Color="Color.Warning" />
                                                 <MudText Typo="Typo.h5" Style="font-weight:700;">@_fbPageInsights.PageEngagement.TotalValue.ToString("N0")</MudText>
-                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">New Fans</MudText>
+                                                <MudText Typo="Typo.caption" Style="opacity:0.6;">Engagements</MudText>
                                             </MudPaper>
                                         </MudItem>
-                                        @* page_views_total removed in Graph API v19.0 — card hidden *@
+                                        @* page_impressions and page_views_total removed in Graph API v19.0 — cards hidden *@
                                     }
                                 </MudGrid>
 
@@ -502,6 +495,9 @@
                                                 <MudTh>Media</MudTh>
                                                 <MudTh>Message</MudTh>
                                                 <MudTh>Type</MudTh>
+                                                <MudTh>Reactions</MudTh>
+                                                <MudTh>Comments</MudTh>
+                                                <MudTh>Reach</MudTh>
                                                 <MudTh>Date</MudTh>
                                                 <MudTh>Actions</MudTh>
                                             </HeaderContent>
@@ -523,6 +519,24 @@
                                                 </MudTd>
                                                 <MudTd DataLabel="Type">
                                                     <MudChip T="string" Size="Size.Small" Color="Color.Primary">@context.Type</MudChip>
+                                                </MudTd>
+                                                <MudTd DataLabel="Reactions">
+                                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                        <MudIcon Icon="@Icons.Material.Filled.ThumbUp" Size="Size.Small" Color="Color.Primary" />
+                                                        <MudText Typo="Typo.body2">@(context.Reactions?.TotalCount ?? 0)</MudText>
+                                                    </MudStack>
+                                                </MudTd>
+                                                <MudTd DataLabel="Comments">
+                                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Secondary" />
+                                                        <MudText Typo="Typo.body2">@context.CommentsCount</MudText>
+                                                    </MudStack>
+                                                </MudTd>
+                                                <MudTd DataLabel="Reach">
+                                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Success" />
+                                                        <MudText Typo="Typo.body2">@context.Reach.ToString("N0")</MudText>
+                                                    </MudStack>
                                                 </MudTd>
                                                 <MudTd DataLabel="Date">
                                                     <MudText Typo="Typo.caption">
@@ -769,22 +783,21 @@
         StateHasChanged();
         try
         {
-            var token = _fbSelectedPageToken ?? FacebookState.AccessToken;
-            Console.WriteLine($"[FB] LoadFbPagePosts: pageId={pageId}, hasPageToken={!string.IsNullOrEmpty(_fbSelectedPageToken)}");
+            // Use USER token for {pageId}/posts — it has pages_read_engagement.
+            // Page tokens (from me/accounts) don't inherit the permission reliably in v22.
+            var token = FacebookState.AccessToken ?? _fbSelectedPageToken;
             var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={pageId}&isPage=true");
             req.Headers.Add("X-Facebook-Token", token);
             var resp = await Http.SendAsync(req);
-            Console.WriteLine($"[FB] PagePosts response: {resp.StatusCode}");
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
                 _fbPagePosts = result?.Data;
-                Console.WriteLine($"[FB] PagePosts loaded: {_fbPagePosts?.Count ?? 0}");
             }
             else
             {
                 var body = await resp.Content.ReadAsStringAsync();
-                Console.WriteLine($"[FB] PagePosts error body: {body}");
+                Console.WriteLine($"[FB] PagePosts error: {body}");
             }
         }
         catch (Exception ex) { Snackbar.Add($"Failed to load page posts: {ex.Message}", Severity.Warning); }

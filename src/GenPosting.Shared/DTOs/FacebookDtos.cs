@@ -46,7 +46,8 @@ public record FacebookPostDto(
     string Permalink,
     FacebookReactionsDto? Reactions,
     int CommentsCount,
-    int SharesCount
+    int SharesCount,
+    int Reach = 0
 );
 
 public record FacebookReactionsDto(

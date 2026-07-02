@@ -51,7 +51,7 @@
                                 }
                                 else
                                 {
-                                    @(_profile.Name.FirstOrDefault())
+                                    @GetInitial(_profile?.Name)
                                 }
                             </MudAvatar>
                             <MudText Typo="Typo.body2"><b>@_profile.Name</b></MudText>
@@ -118,10 +118,10 @@
                                 }
                                 else
                                 {
-                                    @(_instagramProfile.Username.FirstOrDefault())
+                                    @GetInitial(_instagramProfile?.Username)
                                 }
                             </MudAvatar>
-                            <MudText Typo="Typo.body2"><b>@@@_instagramProfile.Username</b></MudText>
+                            <MudText Typo="Typo.body2"><b>@_instagramProfile.Username</b></MudText>
                         </div>
                     }
                     else
@@ -185,7 +185,7 @@
                                 }
                                 else
                                 {
-                                    @(_facebookProfile.Name.FirstOrDefault())
+                                    @GetInitial(_facebookProfile?.Name)
                                 }
                             </MudAvatar>
                             <MudText Typo="Typo.body2"><b>@_facebookProfile.Name</b></MudText>
@@ -224,6 +224,16 @@
     private LinkedInProfileDto? _profile;
     private InstagramUserDto? _instagramProfile;
     private FacebookUserDto? _facebookProfile;
+
+    private static string GetInitial(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        return value.Trim()[0].ToString();
+    }
 
     protected override async Task OnInitializedAsync()
     {

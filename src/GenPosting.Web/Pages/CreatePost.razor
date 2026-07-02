@@ -42,7 +42,7 @@
                                         }
                                         else
                                         {
-                                            @_linkedInProfile.Name.FirstOrDefault()
+                                            @GetInitial(_linkedInProfile?.Name)
                                         }
                                     </MudAvatar>
                                     <div>
@@ -89,7 +89,7 @@
                                         }
                                         else
                                         {
-                                            @(_instagramProfile.Username.FirstOrDefault())
+                                            @GetInitial(_instagramProfile?.Username)
                                         }
                                     </MudAvatar>
                                     <div>
@@ -136,7 +136,7 @@
                                         }
                                         else
                                         {
-                                            @(_facebookProfile.Name.FirstOrDefault())
+                                            @GetInitial(_facebookProfile?.Name)
                                         }
                                     </MudAvatar>
                                     <div>
@@ -195,7 +195,7 @@
                                         }
                                         else
                                         {
-                                            @(fbPage.Name.Length > 0 ? fbPage.Name[0] : 'F')
+                                            @(GetInitial(fbPage.Name))
                                         }
                                     </MudAvatar>
                                     <div>
@@ -288,7 +288,7 @@
                                                 }
                                                 else
                                                 {
-                                                    @user.Username.FirstOrDefault()
+                                                    @GetInitial(user.Username)
                                                 }
                                             </MudAvatar>
                                             <div>
@@ -484,6 +484,16 @@
 
     [SupplyParameterFromQuery(Name = "date")]
     public string? PresetDate { get; set; }
+
+    private static string GetInitial(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        return value.Trim()[0].ToString();
+    }
 
     protected override async Task OnInitializedAsync()
     {

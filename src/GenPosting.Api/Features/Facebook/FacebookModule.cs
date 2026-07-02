@@ -130,9 +130,10 @@ public class FacebookModule : ICarterModule
             return success ? Results.Ok(new { PostId = publishedId }) : Results.BadRequest(error);
         });
 
-        group.MapGet("/posts", async ([FromQuery] string targetId, [FromQuery] bool isPage, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service) =>
+        group.MapGet("/posts", async ([FromQuery] string targetId, [FromQuery] bool isPage, [FromHeader(Name = "X-Facebook-Token")] string token, IFacebookService service, ILogger<FacebookModule> logger) =>
         {
             if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            logger.LogInformation("[Posts] isPage={IsPage} targetId={TargetId} tokenLen={Len}", isPage, targetId, token.Length);
             var posts = await service.GetPostsAsync(token, targetId, isPage);
             return Results.Ok(new FacebookPostListResponse(posts, null));
         });
@@ -200,6 +201,16 @@ public class FacebookModule : ICarterModule
             }
 
             return Results.Ok(new { AlbumId = albumId });
+        });
+
+        // Debug: check what permissions the token actually has
+        group.MapGet("/debug/permissions", async ([FromHeader(Name = "X-Facebook-Token")] string token, IHttpClientFactory factory) =>
+        {
+            if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+            var client = factory.CreateClient();
+            var resp = await client.GetAsync($"https://graph.facebook.com/me/permissions?access_token={token}");
+            var body = await resp.Content.ReadAsStringAsync();
+            return Results.Content(body, "application/json");
         });
     }
 }
