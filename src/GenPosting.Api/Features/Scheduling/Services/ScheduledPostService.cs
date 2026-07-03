@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Text.Json;
 using GenPosting.Api.Features.Scheduling.Models;
 using GenPosting.Shared.Enums;
 
@@ -17,95 +17,236 @@ public interface IScheduledPostService
     Task ResetForRetryAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
-public class InMemoryScheduledPostService : IScheduledPostService
+public class FileScheduledPostService : IScheduledPostService
 {
-    // In a real app, use a Database (EF Core / Dapper)
-    private readonly ConcurrentDictionary<Guid, ScheduledPost> _posts = new();
+    private const int CurrentStorageVersion = 1;
+
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly object _syncRoot = new();
+    private readonly string _storagePath;
+    private readonly Dictionary<Guid, ScheduledPost> _posts;
+
+    public FileScheduledPostService(string? storagePath = null)
+    {
+        _storagePath = string.IsNullOrWhiteSpace(storagePath)
+            ? Path.Combine(Directory.GetCurrentDirectory(), "scheduled-posts.json")
+            : storagePath;
+
+        _posts = LoadPosts();
+    }
 
     public Task SchedulePostAsync(ScheduledPost post, CancellationToken cancellationToken = default)
     {
-        _posts.TryAdd(post.Id, post);
+        ArgumentNullException.ThrowIfNull(post);
+
+        ApplyMutation(posts => posts[post.Id] = post);
         return Task.CompletedTask;
     }
 
     public Task<List<ScheduledPost>> GetAllScheduledPostsAsync(CancellationToken cancellationToken = default)
     {
-        var all = _posts.Values.OrderBy(p => p.ScheduledTime).ToList();
-        return Task.FromResult(all);
+        lock (_syncRoot)
+        {
+            return Task.FromResult(_posts.Values.OrderBy(p => p.ScheduledTime).ToList());
+        }
     }
 
     public Task<ScheduledPost?> GetScheduledPostByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        _posts.TryGetValue(id, out var post);
-        return Task.FromResult(post);
+        lock (_syncRoot)
+        {
+            _posts.TryGetValue(id, out var post);
+            return Task.FromResult(post);
+        }
     }
 
     public Task UpdateScheduledPostAsync(ScheduledPost post, CancellationToken cancellationToken = default)
     {
-        // For in-memory, we just overwrite
-        _posts.AddOrUpdate(post.Id, post, (k, v) => post);
+        ArgumentNullException.ThrowIfNull(post);
+
+        ApplyMutation(posts => posts[post.Id] = post);
         return Task.CompletedTask;
     }
 
     public Task DeleteScheduledPostAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        _posts.TryRemove(id, out _);
+        ApplyMutation(posts => posts.Remove(id));
         return Task.CompletedTask;
     }
 
     public Task<List<ScheduledPost>> GetDuePostsAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
-        var due = _posts.Values
-            .Where(p => !p.IsPublished
-                && p.Status == ScheduledPostStatus.Pending
-                && p.ScheduledTime <= now
-                && (p.NextRetryAt == null || p.NextRetryAt <= now))
-            .ToList();
-        return Task.FromResult(due);
+
+        lock (_syncRoot)
+        {
+            var due = _posts.Values
+                .Where(p => !p.IsPublished
+                    && p.Status == ScheduledPostStatus.Pending
+                    && p.ScheduledTime <= now
+                    && (p.NextRetryAt == null || p.NextRetryAt <= now))
+                .ToList();
+
+            return Task.FromResult(due);
+        }
     }
 
     public Task MarkAsPublishedAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        if (_posts.TryGetValue(id, out var post))
+        ApplyMutation(posts =>
         {
-            post.IsPublished = true;
-            post.Status = ScheduledPostStatus.Published;
-        }
+            if (posts.TryGetValue(id, out var post))
+            {
+                post.IsPublished = true;
+                post.Status = ScheduledPostStatus.Published;
+            }
+        });
+
         return Task.CompletedTask;
     }
 
     public Task MarkAsFailedAsync(Guid id, string error, CancellationToken cancellationToken = default)
     {
-        if (_posts.TryGetValue(id, out var post))
-        {
-            post.RetryCount++;
-            post.FailureReason = error;
+        ArgumentNullException.ThrowIfNull(error);
 
-            if (post.RetryCount < post.MaxRetries)
+        ApplyMutation(posts =>
+        {
+            if (posts.TryGetValue(id, out var post))
             {
-                // Exponential backoff: 1min, 4min, 16min, ...
-                var delayMinutes = Math.Pow(4, post.RetryCount - 1);
-                post.NextRetryAt = DateTimeOffset.UtcNow.AddMinutes(delayMinutes);
-                post.Status = ScheduledPostStatus.Pending;
+                post.RetryCount++;
+                post.FailureReason = error;
+
+                if (post.RetryCount < post.MaxRetries)
+                {
+                    var delayMinutes = Math.Pow(4, post.RetryCount - 1);
+                    post.NextRetryAt = DateTimeOffset.UtcNow.AddMinutes(delayMinutes);
+                    post.Status = ScheduledPostStatus.Pending;
+                }
+                else
+                {
+                    post.Status = ScheduledPostStatus.Failed;
+                }
             }
-            else
-            {
-                post.Status = ScheduledPostStatus.Failed;
-            }
-        }
+        });
+
         return Task.CompletedTask;
     }
 
     public Task ResetForRetryAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        if (_posts.TryGetValue(id, out var post))
+        ApplyMutation(posts =>
         {
-            post.Status = ScheduledPostStatus.Pending;
-            post.RetryCount = 0;
-            post.NextRetryAt = null;
-            post.FailureReason = null;
-        }
+            if (posts.TryGetValue(id, out var post))
+            {
+                post.Status = ScheduledPostStatus.Pending;
+                post.RetryCount = 0;
+                post.NextRetryAt = null;
+                post.FailureReason = null;
+            }
+        });
+
         return Task.CompletedTask;
+    }
+
+    private void ApplyMutation(Action<Dictionary<Guid, ScheduledPost>> mutation)
+    {
+        lock (_syncRoot)
+        {
+            var updatedPosts = new Dictionary<Guid, ScheduledPost>(_posts);
+            mutation(updatedPosts);
+            SavePosts(updatedPosts);
+
+            _posts.Clear();
+            foreach (var item in updatedPosts)
+            {
+                _posts[item.Key] = item.Value;
+            }
+        }
+    }
+
+    private Dictionary<Guid, ScheduledPost> LoadPosts()
+    {
+        if (!File.Exists(_storagePath))
+        {
+            return new Dictionary<Guid, ScheduledPost>();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_storagePath);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new Dictionary<Guid, ScheduledPost>();
+            }
+
+            var envelope = JsonSerializer.Deserialize<ScheduledPostFilePayload>(json, SerializerOptions);
+            if (envelope?.Posts is { Count: > 0 } posts)
+            {
+                return posts.ToDictionary(post => post.Id);
+            }
+
+            var legacyPosts = JsonSerializer.Deserialize<List<ScheduledPost>>(json, SerializerOptions);
+            return legacyPosts?.ToDictionary(post => post.Id) ?? new Dictionary<Guid, ScheduledPost>();
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<Guid, ScheduledPost>();
+        }
+    }
+
+    private void SavePosts(IReadOnlyDictionary<Guid, ScheduledPost> posts)
+    {
+        var directory = Path.GetDirectoryName(_storagePath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var payload = new ScheduledPostFilePayload
+        {
+            Version = CurrentStorageVersion,
+            Posts = posts.Values.OrderBy(post => post.ScheduledTime).ToList()
+        };
+
+        var json = JsonSerializer.Serialize(payload, SerializerOptions);
+        WriteToStorageAtomically(json);
+    }
+
+    private void WriteToStorageAtomically(string json)
+    {
+        var directory = Path.GetDirectoryName(_storagePath) ?? Directory.GetCurrentDirectory();
+        var tempFilePath = Path.Combine(directory, $".{Path.GetFileName(_storagePath)}.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            File.WriteAllText(tempFilePath, json);
+
+            if (File.Exists(_storagePath))
+            {
+                File.Move(tempFilePath, _storagePath, overwrite: true);
+            }
+            else
+            {
+                File.Move(tempFilePath, _storagePath);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempFilePath))
+            {
+                File.Delete(tempFilePath);
+            }
+        }
+    }
+
+    private sealed class ScheduledPostFilePayload
+    {
+        public int Version { get; set; }
+        public List<ScheduledPost>? Posts { get; set; }
     }
 }

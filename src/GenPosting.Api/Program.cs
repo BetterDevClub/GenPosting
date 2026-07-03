@@ -28,7 +28,8 @@ builder.Services.Configure<LinkedInSettings>(builder.Configuration.GetSection(Li
 builder.Services.AddHttpClient<ILinkedInService, LinkedInService>();
 
 // Register Scheduling Services
-builder.Services.AddSingleton<IScheduledPostService, InMemoryScheduledPostService>();
+builder.Services.AddSingleton<IScheduledPostService>(_ =>
+    new FileScheduledPostService(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "scheduled-posts.json")));
 builder.Services.AddHostedService<PostPublisherBackgroundService>();
 
 // Register Friends Services
