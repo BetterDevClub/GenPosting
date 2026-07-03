@@ -1,6 +1,10 @@
+@using System.Net
 @using MudBlazor
 @using GenPosting.Shared.DTOs
+@using GenPosting.Shared.Enums
+@using GenPosting.Web.Services
 @inject ISnackbar Snackbar
+@inject IGenPostingApiClient ApiClient
 
 <MudDialog>
     <DialogContent>
@@ -47,9 +51,16 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
+        @if (Post.Status == ScheduledPostStatus.Failed)
+        {
+            <MudButton Color="Color.Warning" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="RetryPost" Disabled="_retrying">
+                @(_retrying ? "Retrying..." : "Retry")
+            </MudButton>
+        }
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Error" OnClick="DeletePost">Delete Post</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">Save Changes</MudButton>
+        <MudButton Color="Color.Error" OnClick="DeletePost" Disabled="_retrying">Delete Post</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save" Disabled="_retrying">Save Changes</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -63,6 +74,7 @@
     private List<string> _comments = new();
     private DateTime? EditableDate;
     private TimeSpan? EditableTime;
+    private bool _retrying;
 
     protected override void OnInitialized()
     {
@@ -79,6 +91,43 @@
     void Cancel() => MudDialog.Cancel();
     
     void DeletePost() => MudDialog.Close(DialogResult.Ok<string>("DELETE"));
+
+    private async Task RetryPost()
+    {
+        if (Post.Status != ScheduledPostStatus.Failed || _retrying)
+        {
+            return;
+        }
+
+        _retrying = true;
+        try
+        {
+            var response = await ApiClient.RetryScheduledPostAsync(Post.Id);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Retry requested. The post will be processed shortly.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok<string>("RETRY"));
+                return;
+            }
+
+            var message = response.StatusCode switch
+            {
+                HttpStatusCode.BadRequest => "This post is not currently eligible for retry.",
+                HttpStatusCode.NotFound => "The scheduled post could not be found.",
+                _ => "Failed to retry the post. Please try again shortly."
+            };
+
+            Snackbar.Add(message, Severity.Error);
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Unable to reach the service while retrying the post.", Severity.Error);
+        }
+        finally
+        {
+            _retrying = false;
+        }
+    }
 
     void Save()
     {

@@ -90,6 +90,24 @@ public class GenPostingApiClientTests
     }
 
     [Fact]
+    public async Task RetryScheduledPostAsync_UsesPostMethodForRetryEndpoint()
+    {
+        var id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var handler = new RecordingHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal($"/api/scheduling/scheduled/{id}/retry", request.RequestUri?.PathAndQuery);
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        });
+
+        var client = new GenPostingApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://example.test") });
+        var response = await client.RetryScheduledPostAsync(id);
+
+        Assert.True(response.IsSuccessStatusCode);
+    }
+
+    [Fact]
     public async Task PutAsJsonAsync_UsesJsonContentAndHeaders()
     {
         var handler = new RecordingHandler(async request =>

@@ -308,15 +308,22 @@
 
         if (!result.Canceled)
         {
-            if (result.Data is string s && s == "DELETE")
+            if (result.Data is string s)
             {
-                var delRes = await ApiClient.DeleteAsync($"/api/scheduling/scheduled/{post.Id}");
-                if (delRes.IsSuccessStatusCode)
+                if (s == "DELETE")
                 {
-                    Snackbar.Add("Post deleted", Severity.Success);
+                    var delRes = await ApiClient.DeleteAsync($"/api/scheduling/scheduled/{post.Id}");
+                    if (delRes.IsSuccessStatusCode)
+                    {
+                        Snackbar.Add("Post deleted", Severity.Success);
+                        await LoadScheduledPosts();
+                    }
+                    else Snackbar.Add("Failed to delete", Severity.Error);
+                }
+                else if (s == "RETRY")
+                {
                     await LoadScheduledPosts();
                 }
-                else Snackbar.Add("Failed to delete", Severity.Error);
             }
             else if (result.Data is ScheduledPostDto updated)
             {

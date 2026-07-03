@@ -7,4 +7,5 @@ public interface IGenPostingApiClient
     Task<HttpResponseMessage> PostAsJsonAsync<TValue>(string requestUri, TValue value, IReadOnlyDictionary<string, string>? headers = null, CancellationToken cancellationToken = default);
     Task<HttpResponseMessage> PutAsJsonAsync<TValue>(string requestUri, TValue value, IReadOnlyDictionary<string, string>? headers = null, CancellationToken cancellationToken = default);
     Task<HttpResponseMessage> DeleteAsync(string requestUri, IReadOnlyDictionary<string, string>? headers = null, CancellationToken cancellationToken = default);
+    Task<HttpResponseMessage> RetryScheduledPostAsync(Guid postId, CancellationToken cancellationToken = default);
 }

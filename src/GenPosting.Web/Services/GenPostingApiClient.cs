@@ -49,4 +49,7 @@ public sealed class GenPostingApiClient : IGenPostingApiClient
 
     public Task<HttpResponseMessage> DeleteAsync(string requestUri, IReadOnlyDictionary<string, string>? headers = null, CancellationToken cancellationToken = default)
         => SendAsync(HttpMethod.Delete, requestUri, headers: headers, cancellationToken: cancellationToken);
+
+    public Task<HttpResponseMessage> RetryScheduledPostAsync(Guid postId, CancellationToken cancellationToken = default)
+        => SendAsync(HttpMethod.Post, $"/api/scheduling/scheduled/{postId}/retry", cancellationToken: cancellationToken);
 }
