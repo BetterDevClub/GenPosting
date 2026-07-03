@@ -2,7 +2,7 @@
 @using GenPosting.Shared.DTOs
 @using GenPosting.Shared.Enums
 @using GenPosting.Web.Services
-@inject HttpClient Http
+@inject IGenPostingApiClient ApiClient
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
 @inject IFacebookStateService FacebookState
@@ -194,7 +194,8 @@ else
         _loading = true;
         try
         {
-            var all = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("/api/linkedin/scheduled") ?? new();
+            // Use the shared scheduling endpoint for upcoming posts so the page stays aligned with the calendar flow.
+            var all = await ApiClient.GetFromJsonAsync<List<ScheduledPostDto>>("/api/scheduling/scheduled") ?? new();
             var now = DateTimeOffset.Now;
             _upcomingPosts = all.Where(p => p.ScheduledTime > now && p.Status == ScheduledPostStatus.Pending)
                                 .OrderBy(p => p.ScheduledTime)

@@ -2,7 +2,7 @@
 @using GenPosting.Shared.DTOs
 @using GenPosting.Web.Services
 @using GenPosting.Web.Components
-@inject HttpClient Http
+@inject IGenPostingApiClient ApiClient
 @inject NavigationManager Nav
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
@@ -516,7 +516,7 @@
         // Load Friends
         try
         {
-            _friends = await Http.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
+            _friends = await ApiClient.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
         }
         catch {}
 
@@ -530,9 +530,10 @@
         {
             if (LinkedInState.IsAuthenticated)
             {
-                var req = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/profile");
-                req.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-                var res = await Http.SendAsync(req);
+                var res = await ApiClient.SendAsync(HttpMethod.Get, "/api/linkedin/profile", headers: new Dictionary<string, string>
+                {
+                    ["X-LinkedIn-Token"] = LinkedInState.AccessToken
+                });
                 if (res.IsSuccessStatusCode)
                 {
                     _linkedInProfile = await res.Content.ReadFromJsonAsync<LinkedInProfileDto>();
@@ -542,10 +543,11 @@
 
             if (InstagramState.IsAuthenticated)
             {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}");
-                req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-                req.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
-                var res = await Http.SendAsync(req);
+                var res = await ApiClient.SendAsync(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}", headers: new Dictionary<string, string>
+                {
+                    ["X-Instagram-Token"] = InstagramState.AccessToken,
+                    ["X-Instagram-UserId"] = InstagramState.UserId
+                });
                 if (res.IsSuccessStatusCode)
                 {
                     _instagramProfile = await res.Content.ReadFromJsonAsync<InstagramUserDto>();
@@ -555,9 +557,10 @@
 
             if (FacebookState.IsAuthenticated)
             {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}");
-                req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-                var res = await Http.SendAsync(req);
+                var res = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}", headers: new Dictionary<string, string>
+                {
+                    ["X-Facebook-Token"] = FacebookState.AccessToken
+                });
                 if (res.IsSuccessStatusCode)
                 {
                     _facebookProfile = await res.Content.ReadFromJsonAsync<FacebookUserDto>();
@@ -645,9 +648,10 @@
         _loadingFacebookPages = true;
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}");
-            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-            var res = await Http.SendAsync(req);
+            var res = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = FacebookState.AccessToken
+            });
             if (res.IsSuccessStatusCode)
             {
                 var response = await res.Content.ReadFromJsonAsync<FacebookPageListResponse>();
@@ -767,11 +771,10 @@
                  fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
                  content.Add(fileContent, "file", file.Name);
 
-                 var req = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/upload");
-                 req.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-                 req.Content = content;
-                 
-                 var res = await Http.SendAsync(req);
+                 var res = await ApiClient.SendAsync(HttpMethod.Post, "/api/linkedin/upload", content, headers: new Dictionary<string, string>
+                 {
+                     ["X-LinkedIn-Token"] = LinkedInState.AccessToken
+                 });
                  if (res.IsSuccessStatusCode)
                  {
                      var uploadDto = await res.Content.ReadFromJsonAsync<LinkedInUploadResponse>();
@@ -781,11 +784,10 @@
          }
 
          var postReq = new CreateLinkedInPostRequest(_postContent, mediaUrns, mediaType, _comments, scheduledAt, thumbnailUrl);
-         var reqMsg = new HttpRequestMessage(HttpMethod.Post, "/api/linkedin/post");
-         reqMsg.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-         reqMsg.Content = JsonContent.Create(postReq);
-         
-         var response = await Http.SendAsync(reqMsg);
+         var response = await ApiClient.SendAsync(HttpMethod.Post, "/api/linkedin/post", JsonContent.Create(postReq), headers: new Dictionary<string, string>
+         {
+             ["X-LinkedIn-Token"] = LinkedInState.AccessToken
+         });
          if (!response.IsSuccessStatusCode) throw new Exception("LinkedIn Post Failed");
     }
 
@@ -842,12 +844,11 @@
              content.Add(new StringContent(scheduledAt.Value.ToString("O")), "scheduledFor");
         }
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/instagram/post");
-        req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-        req.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
-        req.Content = content;
-
-        var res = await Http.SendAsync(req);
+        var res = await ApiClient.SendAsync(HttpMethod.Post, "/api/instagram/post", content, headers: new Dictionary<string, string>
+        {
+            ["X-Instagram-Token"] = InstagramState.AccessToken,
+            ["X-Instagram-UserId"] = InstagramState.UserId
+        });
         if (!res.IsSuccessStatusCode) 
         {
             var err = await res.Content.ReadAsStringAsync();
@@ -881,11 +882,11 @@
                 form.Add(new StreamContent(stream), "file", file.Name);
             }
 
-            var req = new HttpRequestMessage(HttpMethod.Post, "/api/facebook/post") { Content = form };
-            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-            req.Headers.Add("X-Facebook-UserId", FacebookState.UserId);
-
-            var res = await Http.SendAsync(req);
+            var res = await ApiClient.SendAsync(HttpMethod.Post, "/api/facebook/post", form, headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = FacebookState.AccessToken,
+                ["X-Facebook-UserId"] = FacebookState.UserId
+            });
             if (!res.IsSuccessStatusCode)
             {
                 var err = await res.Content.ReadAsStringAsync();
@@ -986,11 +987,11 @@
              // 2. Search Instagram Business API
              if (_instagramSelected && InstagramState.IsAuthenticated)
              {
-                 var request = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/users/search?query={_currentMentionQuery}");
-                 request.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-                 request.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
-
-                 var response = await Http.SendAsync(request);
+                 var response = await ApiClient.SendAsync(HttpMethod.Get, $"/api/instagram/users/search?query={_currentMentionQuery}", headers: new Dictionary<string, string>
+                 {
+                     ["X-Instagram-Token"] = InstagramState.AccessToken,
+                     ["X-Instagram-UserId"] = InstagramState.UserId
+                 });
                  if (response.IsSuccessStatusCode)
                  {
                      var apiResults = await response.Content.ReadFromJsonAsync<List<InstagramUserSearchResultDto>>();

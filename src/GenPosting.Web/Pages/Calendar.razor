@@ -1,9 +1,10 @@
 @page "/calendar"
 @using GenPosting.Shared.DTOs
 @using GenPosting.Shared.Enums
+@using GenPosting.Web.Services
 @using System.Globalization
 @using Microsoft.Extensions.Logging
-@inject HttpClient Http
+@inject IGenPostingApiClient ApiClient
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
@@ -239,7 +240,7 @@
         _loading = true;
         try
         {
-            _allScheduledPosts = await Http.GetFromJsonAsync<List<ScheduledPostDto>>("api/scheduling/scheduled") ?? new();
+            _allScheduledPosts = await ApiClient.GetFromJsonAsync<List<ScheduledPostDto>>("api/scheduling/scheduled") ?? new();
         }
         catch (Exception ex)
         {
@@ -309,7 +310,7 @@
         {
             if (result.Data is string s && s == "DELETE")
             {
-                var delRes = await Http.DeleteAsync($"/api/scheduling/scheduled/{post.Id}");
+                var delRes = await ApiClient.DeleteAsync($"/api/scheduling/scheduled/{post.Id}");
                 if (delRes.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Post deleted", Severity.Success);
@@ -327,7 +328,7 @@
                     updated.ScheduledTime
                 );
 
-                var res = await Http.PutAsJsonAsync($"/api/scheduling/scheduled/{updated.Id}", request);
+                var res = await ApiClient.PutAsJsonAsync($"/api/scheduling/scheduled/{updated.Id}", request);
                 if (res.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Post updated", Severity.Success);

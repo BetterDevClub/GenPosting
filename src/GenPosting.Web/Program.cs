@@ -14,6 +14,7 @@ builder.Services.AddScoped(sp =>
     { 
         BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? builder.HostEnvironment.BaseAddress) 
     });
+builder.Services.AddScoped<IGenPostingApiClient, GenPostingApiClient>();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<ILinkedInStateService, LinkedInStateService>();
 builder.Services.AddSingleton<IInstagramStateService, InstagramStateService>();

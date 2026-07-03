@@ -1,6 +1,7 @@
 @page "/friends"
 @using GenPosting.Shared.DTOs
-@inject HttpClient Http
+@using GenPosting.Web.Services
+@inject IGenPostingApiClient ApiClient
 @inject ISnackbar Snackbar
 
 <PageTitle>Friends List - GenPosting</PageTitle>
@@ -86,7 +87,7 @@
         _loading = true;
         try
         {
-            _friends = await Http.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
+            _friends = await ApiClient.GetFromJsonAsync<List<FriendDto>>("/api/friends") ?? new();
         }
         catch (Exception ex)
         {
@@ -128,7 +129,7 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync("/api/friends", _newFriend);
+            var response = await ApiClient.PostAsJsonAsync("/api/friends", _newFriend);
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add("Friend added!", Severity.Success);
@@ -151,7 +152,7 @@
     {
         try
         {
-            var response = await Http.DeleteAsync($"/api/friends/{friend.Id}");
+            var response = await ApiClient.DeleteAsync($"/api/friends/{friend.Id}");
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add("Friend deleted", Severity.Success);

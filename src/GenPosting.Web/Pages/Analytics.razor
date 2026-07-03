@@ -2,7 +2,7 @@
 @using GenPosting.Shared.DTOs
 @using GenPosting.Shared.Enums
 @using GenPosting.Web.Services
-@inject HttpClient Http
+@inject IGenPostingApiClient ApiClient
 @inject ILinkedInStateService LinkedInState
 @inject IInstagramStateService InstagramState
 @inject IFacebookStateService FacebookState
@@ -614,18 +614,17 @@
         _liPostsLoading = true;
         try
         {
-            var profileReq = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/profile");
-            profileReq.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            var profileResp = await Http.SendAsync(profileReq);
+            var profileResp = await ApiClient.SendAsync(HttpMethod.Get, "/api/linkedin/profile", headers: new Dictionary<string, string>
+            {
+                ["X-LinkedIn-Token"] = LinkedInState.AccessToken
+            });
             if (profileResp.IsSuccessStatusCode)
                 _liProfile = await profileResp.Content.ReadFromJsonAsync<LinkedInProfileDto>();
 
             _liProfileLoading = false;
             StateHasChanged();
 
-            var postsReq = new HttpRequestMessage(HttpMethod.Get, "/api/linkedin/scheduled");
-            postsReq.Headers.Add("X-LinkedIn-Token", LinkedInState.AccessToken);
-            var postsResp = await Http.SendAsync(postsReq);
+            var postsResp = await ApiClient.SendAsync(HttpMethod.Get, "/api/scheduling/scheduled");
             if (postsResp.IsSuccessStatusCode)
             {
                 var result = await postsResp.Content.ReadFromJsonAsync<List<ScheduledPostDto>>();
@@ -654,9 +653,10 @@
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}");
-            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/instagram/profile?userId={InstagramState.UserId}", headers: new Dictionary<string, string>
+            {
+                ["X-Instagram-Token"] = InstagramState.AccessToken
+            });
             if (resp.IsSuccessStatusCode)
                 _igProfile = await resp.Content.ReadFromJsonAsync<InstagramUserDto>();
         }
@@ -668,9 +668,10 @@
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/instagram/insights/account?userId={InstagramState.UserId}");
-            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/instagram/insights/account?userId={InstagramState.UserId}", headers: new Dictionary<string, string>
+            {
+                ["X-Instagram-Token"] = InstagramState.AccessToken
+            });
             if (resp.IsSuccessStatusCode)
                 _igInsights = await resp.Content.ReadFromJsonAsync<InstagramAccountInsightsResponse>();
         }
@@ -682,10 +683,11 @@
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, "/api/instagram/media");
-            req.Headers.Add("X-Instagram-Token", InstagramState.AccessToken);
-            req.Headers.Add("X-Instagram-UserId", InstagramState.UserId);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, "/api/instagram/media", headers: new Dictionary<string, string>
+            {
+                ["X-Instagram-Token"] = InstagramState.AccessToken,
+                ["X-Instagram-UserId"] = InstagramState.UserId
+            });
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<InstagramMediaListResponse>();
@@ -717,9 +719,10 @@
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}");
-            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/profile?userId={FacebookState.UserId}", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = FacebookState.AccessToken
+            });
             if (resp.IsSuccessStatusCode)
                 _fbProfile = await resp.Content.ReadFromJsonAsync<FacebookUserDto>();
         }
@@ -731,9 +734,10 @@
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}");
-            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/pages?userId={FacebookState.UserId}", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = FacebookState.AccessToken
+            });
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<FacebookPageListResponse>();
@@ -756,9 +760,10 @@
         StateHasChanged();
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={FacebookState.UserId}&isPage=false");
-            req.Headers.Add("X-Facebook-Token", FacebookState.AccessToken);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/posts?targetId={FacebookState.UserId}&isPage=false", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = FacebookState.AccessToken
+            });
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
@@ -786,9 +791,10 @@
             // Use USER token for {pageId}/posts — it has pages_read_engagement.
             // Page tokens (from me/accounts) don't inherit the permission reliably in v22.
             var token = FacebookState.AccessToken ?? _fbSelectedPageToken;
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/posts?targetId={pageId}&isPage=true");
-            req.Headers.Add("X-Facebook-Token", token);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/posts?targetId={pageId}&isPage=true", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = token
+            });
             if (resp.IsSuccessStatusCode)
             {
                 var result = await resp.Content.ReadFromJsonAsync<FacebookPostListResponse>();
@@ -811,9 +817,10 @@
         try
         {
             var token = _fbSelectedPageToken ?? FacebookState.AccessToken;
-            var req = new HttpRequestMessage(HttpMethod.Get, $"/api/facebook/insights/page?pageId={pageId}");
-            req.Headers.Add("X-Facebook-Token", token);
-            var resp = await Http.SendAsync(req);
+            var resp = await ApiClient.SendAsync(HttpMethod.Get, $"/api/facebook/insights/page?pageId={pageId}", headers: new Dictionary<string, string>
+            {
+                ["X-Facebook-Token"] = token
+            });
             if (resp.IsSuccessStatusCode)
                 _fbPageInsights = await resp.Content.ReadFromJsonAsync<FacebookPageInsightsResponse>();
         }
