@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 using GenPosting.Shared.DTOs;
@@ -9,6 +10,7 @@ namespace GenPosting.Api.Features.LinkedIn.Services;
 
 public class LinkedInService : ILinkedInService
 {
+    private static readonly string[] LinkedInApiVersions = ["202506", "202505", "202504", "202503", "202502"];
     private static readonly TimeSpan AuthorUrnCacheTtl = TimeSpan.FromHours(1);
 
     private readonly HttpClient _httpClient;
@@ -72,7 +74,7 @@ public class LinkedInService : ILinkedInService
         if (withLinkedInHeaders)
         {
             request.Headers.Add("X-Restli-Protocol-Version", "2.0.0");
-            request.Headers.Add("LinkedIn-Version", "202401");
+            request.Headers.Add("LinkedIn-Version", LinkedInApiVersions[0]);
         }
         return request;
     }
@@ -273,7 +275,7 @@ public class LinkedInService : ILinkedInService
 
     public async Task<(bool Success, string? Error, LinkedInPostCreatedResponse? Data)> CreatePostAsync(string accessToken, string content, List<string>? mediaUrns = null, string mediaType = "NONE", CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version=202401");
+        _logger.LogDebug("[LinkedInService] Headers: X-Restli-Protocol-Version=2.0.0, LinkedIn-Version={LinkedInApiVersion}", LinkedInApiVersions[0]);
 
         var authorUrn = await GetAuthorUrnInternalAsync(accessToken, cancellationToken);
         if (authorUrn == null) return (false, "Failed to fetch user info", null);
@@ -346,39 +348,56 @@ public class LinkedInService : ILinkedInService
         };
         var jsonPayload = System.Text.Json.JsonSerializer.Serialize(postPayload, serializerOptions);
         
-        // Use /rest/posts endpoint
-        var requestMessage = CreateRequest(HttpMethod.Post, $"{_settings.RestApiUrl}/posts", accessToken, withLinkedInHeaders: true);
-        requestMessage.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
-        
-        // Force disable chunked encoding to satisfy LinkedIn's strict server
-        requestMessage.Headers.TransferEncodingChunked = false;
-        
-        // --- LOGGING ---
-        _logger.LogInformation("[LinkedInService] Sending POST request to {RestApiUrl}/posts", _settings.RestApiUrl);
-        _logger.LogDebug("[LinkedInService] Payload: {JsonPayload}", jsonPayload);
-        
-        // ----------------
+        HttpResponseMessage? response = null;
 
-        var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
-        
-        if (!response.IsSuccessStatusCode)
+        for (var index = 0; index < LinkedInApiVersions.Length; index++)
         {
-             var errorBody = await response.Content.ReadAsStringAsync();
-             _logger.LogError("[LinkedInService] ERROR: Status {StatusCode}", response.StatusCode);
-             _logger.LogError("[LinkedInService] Response Body: {ErrorBody}", errorBody);
-             return (false, $"LinkedIn Error ({response.StatusCode}): {errorBody}", null);
+            var version = LinkedInApiVersions[index];
+            var requestMessage = CreateRequest(HttpMethod.Post, $"{_settings.RestApiUrl}/posts", accessToken, withLinkedInHeaders: true);
+            requestMessage.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+            requestMessage.Headers.TransferEncodingChunked = false;
+            requestMessage.Headers.Remove("LinkedIn-Version");
+            requestMessage.Headers.Add("LinkedIn-Version", version);
+
+            _logger.LogInformation("[LinkedInService] Sending POST request to {RestApiUrl}/posts", _settings.RestApiUrl);
+            _logger.LogDebug("[LinkedInService] Payload: {JsonPayload}", jsonPayload);
+
+            response = await _httpClient.SendAsync(requestMessage, cancellationToken);
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (response.Headers.TryGetValues("x-restli-id", out var ids))
+                {
+                    var postId = ids.FirstOrDefault();
+                    return (true, null, new LinkedInPostCreatedResponse(postId ?? ""));
+                }
+
+                return (true, null, new LinkedInPostCreatedResponse("CREATED"));
+            }
+
+            var nextVersion = index < LinkedInApiVersions.Length - 1 ? LinkedInApiVersions[index + 1] : null;
+            if (!IsVersionMismatch(response.StatusCode, errorBody) || nextVersion is null)
+            {
+                _logger.LogError("[LinkedInService] ERROR: Status {StatusCode}", response.StatusCode);
+                _logger.LogError("[LinkedInService] Response Body: {ErrorBody}", errorBody);
+                return (false, $"LinkedIn Error ({response.StatusCode}): {errorBody}", null);
+            }
+
+            _logger.LogWarning("[LinkedInService] LinkedIn API version {Version} was rejected; retrying with {NextVersion}", version, nextVersion);
         }
 
-        // Response header x-restli-id contains the ID
-        if (response.Headers.TryGetValues("x-restli-id", out var ids))
-        {
-            var postId = ids.FirstOrDefault();
-            return (true, null, new LinkedInPostCreatedResponse(postId ?? ""));
-        }
-        
-        // Sometimes body contains ID, but posts API usually uses header
-        return (true, null, new LinkedInPostCreatedResponse("CREATED"));
+        var finalErrorBody = await response!.Content.ReadAsStringAsync(cancellationToken);
+        _logger.LogError("[LinkedInService] ERROR: Status {StatusCode}", response.StatusCode);
+        _logger.LogError("[LinkedInService] Response Body: {ErrorBody}", finalErrorBody);
+        return (false, $"LinkedIn Error ({response.StatusCode}): {finalErrorBody}", null);
     }
+
+    private static bool IsVersionMismatch(HttpStatusCode statusCode, string errorBody)
+        => statusCode == HttpStatusCode.UpgradeRequired ||
+           statusCode == HttpStatusCode.BadRequest &&
+           (errorBody.Contains("version", StringComparison.OrdinalIgnoreCase) ||
+            errorBody.Contains("unsupported", StringComparison.OrdinalIgnoreCase));
 
     // Internal classes for JSON deserialization
     private record LinkedInTokenResponseInternal(string access_token, int expires_in);
