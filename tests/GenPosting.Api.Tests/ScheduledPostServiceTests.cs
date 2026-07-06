@@ -156,6 +156,30 @@ public class ScheduledPostServiceTests
     }
 
     [Fact]
+    public async Task SqliteScheduledPosts_PersistAcrossServiceRecreation()
+    {
+        var tempFile = CreateTempFilePath("scheduled-posts");
+
+        try
+        {
+            var firstService = new FileScheduledPostService(tempFile);
+            var post = CreatePost("sqlite-backed post");
+
+            await firstService.SchedulePostAsync(post);
+
+            var reloadedService = new FileScheduledPostService(tempFile);
+            var persistedPost = await reloadedService.GetScheduledPostByIdAsync(post.Id);
+
+            Assert.NotNull(persistedPost);
+            Assert.Equal(post.Content, persistedPost!.Content);
+        }
+        finally
+        {
+            DeleteTempFile(tempFile);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentSchedules_PersistConsistentState()
     {
         var tempFile = CreateTempFilePath();
@@ -183,9 +207,9 @@ public class ScheduledPostServiceTests
         }
     }
 
-    private static string CreateTempFilePath()
+    private static string CreateTempFilePath(string? prefix = null)
     {
-        return Path.Combine(Path.GetTempPath(), $"genposting-scheduled-posts-{Guid.NewGuid():N}.json");
+        return Path.Combine(Path.GetTempPath(), $"genposting-{prefix ?? "scheduled-posts"}-{Guid.NewGuid():N}.db");
     }
 
     private static void DeleteTempFile(string filePath)
